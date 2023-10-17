@@ -1,0 +1,2 @@
+class EmailAttachmentError(Exception):
+    pass

@@ -1,1 +1,8 @@
 .env
+data/
+test.ipynb
+dsptools.egg-info
+.pytest_cache
+.coverage
+dsp_private_key.ppk
+__pycache__/

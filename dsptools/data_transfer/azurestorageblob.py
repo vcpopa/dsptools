@@ -15,7 +15,7 @@ def connect_to_azure_blob(
         container_name (str): Name of the container to connect to.
 
     Returns:
-        container_client (ContainerClient): Azure Blob Storage container client, or None if the connection fails.
+        container_client (ContainerClient): Azure Blob Storage container client, or None if failure.
     """
     try:
         # Create a connection string from the account name and key

@@ -1,0 +1,39 @@
+name: diff-action
+
+# Run on all push events
+on:
+  push:
+
+permissions:
+  contents: read # this is necessary for the Action to be able to read the contents of the repo
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the repo
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # needed to checkout all branches for this Action to work
+
+      # Check the PR diff using the current branch and the base branch of the PR
+      - uses: GrantBirki/git-diff-action@v2.1.1
+        id: git-diff-action
+        with:
+          json_diff_file_output: diff.json
+          raw_diff_file_output: diff.txt
+          file_output_only: "true"
+
+      # Create a new issue with the Git diff
+      - name: Create Issue
+        run: |
+          echo "Here is the Git diff:" > issue_body.txt
+          cat ${{ steps.git-diff-action.outputs.json-diff-path }} >> issue_body.txt
+          echo "" >> issue_body.txt
+          echo "Raw Diff:" >> issue_body.txt
+          cat ${{ steps.git-diff-action.outputs.raw-diff-path }} >> issue_body.txt
+          echo "![Git Diff](./${{ steps.git-diff-action.outputs.json-diff-path }})" >> issue_body.txt
+          gh issue create --title "GitHub Action Notification" --body-file issue_body.txt
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}

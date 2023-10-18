@@ -2,6 +2,7 @@ import subprocess
 from typing import Tuple, List, Dict, Any
 import concurrent
 import paramiko
+from dsptools.errors.data import SFTPError
 
 
 def download_sftp(
@@ -39,8 +40,11 @@ def download_sftp(
             encoding="utf-8",
         ) as process:
             output, error = process.communicate(input=f"{password}\n")
+        if error:
+            raise SFTPError(f"pscp process raised the following error: {error}")
+
     except subprocess.CalledProcessError as e:
-        raise Exception(f"Error downloading file: {e}")
+        raise SFTPError(f"Error downloading file: {e}")
 
     return output, error
 
@@ -121,17 +125,17 @@ def list_files_with_properties(
     if password and keyfile:
         raise ValueError("Use either 'password' or 'keyfile', not both.")
 
-    transport = paramiko.Transport((sftp_server, 22))
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
         if keyfile:
-            private_key = paramiko.RSAKey(filename=keyfile)
-            transport.connect(username=username, pkey=private_key)
+            ssh.connect(sftp_server, username=username, key_filename=keyfile)
         else:
-            transport.connect(username=username, password=password)
+            ssh.connect(sftp_server, username=username, password=password)
 
-        sftp = transport.open_sftp()
-        file_list = []
+        sftp = ssh.open_sftp()
         sftp.chdir(sftp_path)
+        file_list = []
         files = sftp.listdir()
         for filename in files:
             file_attributes = sftp.stat(filename)
@@ -144,8 +148,9 @@ def list_files_with_properties(
             )
     except Exception as e:
         print(f"An error occurred: {str(e)}")
-        raise e
+        raise e from e
     finally:
-        transport.close()
+        if "sftp" in locals():
+            sftp.close()
 
     return file_list

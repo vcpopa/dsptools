@@ -75,7 +75,7 @@ def download_file(
 def download_files_concurrently(
     container_client: ContainerClient,
     file_pairs: List[Tuple[str, str]],
-    max_workers: int,
+    max_workers: int = 4,
 ) -> Dict[str, List]:
     """
     Download files from Azure Blob Storage concurrently.

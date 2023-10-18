@@ -105,7 +105,7 @@ disable=
     protected-access,
     too-few-public-methods,
     broad-exception-raised,
-    line-too-long
+    line-too-long,
     format,
     fixme,
 

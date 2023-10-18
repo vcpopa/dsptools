@@ -6,4 +6,4 @@ dsptools.egg-info
 .coverage
 dsp_private_key.ppk
 __pycache__/
-.tox/
+.tox

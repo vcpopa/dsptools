@@ -1,4 +1,4 @@
-name: diff-action
+name: List changes
 
 # Run on all push events
 on:

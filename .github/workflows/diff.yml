@@ -1,4 +1,4 @@
-name: List changes
+name: diff-action
 
 # Run on all push events
 on:
@@ -30,7 +30,7 @@ jobs:
           gh gist create --public gist_body.txt
 
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Create an issue with a link to the Gist
       - name: Create Issue
@@ -40,4 +40,4 @@ jobs:
           gh issue create --title "GitHub Action Notification" --body-file issue_body.txt
 
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

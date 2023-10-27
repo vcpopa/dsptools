@@ -7,3 +7,4 @@ dsptools.egg-info
 dsp_private_key.ppk
 __pycache__/
 .tox
+teams_config.yml

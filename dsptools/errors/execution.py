@@ -12,3 +12,7 @@ class PollingConditionError(Exception):
 
 class RetryTimeout(Exception):
     pass
+
+
+class TeamsMessageError(Exception):
+    pass

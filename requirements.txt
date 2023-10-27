@@ -1,8 +1,7 @@
 azure-storage-blob==12.8.1
 paramiko==3.3.1
+pymsteams==0.2.2
 pytest==7.4.2
+PyYAML==6.0.1
 setuptools==68.2.2
-pytest>=7.4.2
-pytest-cov>=4.0.0
-tox>=4.6
-setuptools==68.2.2
+SQLAlchemy==2.0.22

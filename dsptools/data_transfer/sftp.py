@@ -1,8 +1,10 @@
 import subprocess
 from typing import Tuple, List, Dict, Any
-import concurrent
+from concurrent.futures import ThreadPoolExecutor
 import paramiko
 from dsptools.errors.data import SFTPError
+
+# TODO: make an SFTP config file + config parser function and remove login params
 
 
 def download_sftp(
@@ -10,8 +12,9 @@ def download_sftp(
     password: str,
     host: str,
     sftp_file_path: str,
-    destination_folder_path: str,
-) -> Tuple[str, str]:
+    destination_file_path: str,
+    verbose: bool = False,
+) -> str:
     """
     Download a file from an SFTP server to a local destination folder using pscp.
 
@@ -20,7 +23,8 @@ def download_sftp(
         password (str): The SFTP password.
         host (str): The SFTP host address.
         sftp_file_path (str): The path to the file on the SFTP server.
-        destination_folder_path (str): The local destination folder to save the downloaded file.
+        destination_file_path (str): The local destination folder to save the downloaded file.
+        verbose (bool): Whether to print a message upon successful download. Defaults to False
 
     Returns:
         Tuple[str, str]: A tuple containing the standard output and standard error from the pscp command.
@@ -29,8 +33,8 @@ def download_sftp(
         download_sftp(username="myuser", password="mypassword", host="sftp.example.com",
                       sftp_file_path="/remote/file.txt", destination_folder_path="/local/folder")
     """
-    command = f"pscp -pw {password} {username}@{host}:{sftp_file_path} {destination_folder_path}"
-    print(f"Downloading {sftp_file_path} to {destination_folder_path}")
+    command = f"pscp -pw {password} {username}@{host}:{sftp_file_path} {destination_file_path}"
+    print(f"Downloading {sftp_file_path} to {destination_file_path}")
     try:
         with subprocess.Popen(
             command,
@@ -39,23 +43,25 @@ def download_sftp(
             stderr=subprocess.PIPE,
             encoding="utf-8",
         ) as process:
-            output, error = process.communicate(input=f"{password}\n")
+            _, error = process.communicate(input=f"{password}\n")
+        if verbose is True:
+            print(f"{sftp_file_path} downloaded to {destination_file_path}")
         if error:
             raise SFTPError(f"pscp process raised the following error: {error}")
 
     except subprocess.CalledProcessError as e:
         raise SFTPError(f"Error downloading file: {e}")
 
-    return output, error
+    return destination_file_path
 
 
 def download_sftp_concurrently(
     username: str,
     password: str,
     host: str,
-    sftp_file_paths: List[str],
-    destination_folder_path: str,
+    file_pairs: List[Tuple[str, str]],
     max_workers: int = 4,
+    verbose: bool = False,
 ) -> List[str]:
     """
     Download multiple files from an SFTP server to a local destination folder concurrently.
@@ -64,29 +70,40 @@ def download_sftp_concurrently(
         username (str): The SFTP username.
         password (str): The SFTP password.
         host (str): The SFTP host address.
-        sftp_file_paths (List[str]): List of paths to files on the SFTP server.
-        destination_folder_path (str): The local destination folder to save the downloaded files.
+        file_pairs (List[Tuple[str, str]]): A list of file pairs, where each pair is (SFTP file path, local destination file path).
         max_workers (int, optional): The maximum number of concurrent download workers (default is 4).
+        verbose (bool): Whether to print a message upon successful download. Defaults to False.
 
     Returns:
         List[str]: A list of messages indicating the download status of each file.
 
     Example:
         download_sftp_concurrently(username="myuser", password="mypassword", host="sftp.example.com",
-                                   sftp_file_paths=["/remote/file1.txt", "/remote/file2.txt"],
-                                   destination_folder_path="/local/folder")
+                                   file_pairs=[("/remote/file1.txt", "/local/file1.txt"), ("/remote/file2.txt", "/local/file2.txt")],
+                                   max_workers=4, verbose=True)
     """
+
     results = []
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for file_path in sftp_file_paths:
-            _, error = download_sftp(
-                username, password, host, file_path, destination_folder_path
-            )
-            if error:
-                results.append(f"Error downloading {file_path}: {error}")
-            else:
-                results.append(f"Downloaded {file_path} successfully.")
+    def download_file_wrapper(pair, verbose=verbose):
+        sftp_file_path, destination_file_path = pair
+        result = download_sftp(
+            username=username,
+            password=password,
+            host=host,
+            sftp_file_path=sftp_file_path,
+            destination_file_path=destination_file_path,
+            verbose=verbose,
+        )
+        return result
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(download_file_wrapper, pair) for pair in file_pairs]
+
+        results = []
+        for future in futures:
+            result = future.result()
+            results.append(result)
 
     return results
 

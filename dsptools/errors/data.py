@@ -4,3 +4,11 @@ class EmailAttachmentError(Exception):
 
 class SFTPError(Exception):
     pass
+
+
+class AzureStorageBlobError(Exception):
+    pass
+
+
+class AzureStorageBlobConnectionError(Exception):
+    pass

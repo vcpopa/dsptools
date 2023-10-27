@@ -1,0 +1,13 @@
+path_to_alteryx: /path/to/your/workflow.yxmd
+log_to:
+  table: log_table
+  connection_string: your_connection_string
+admins:
+  - admin1
+  - admin2
+on_error: warn
+verbose: true
+timeout_settings:
+  timeout_duration_seconds: 60
+  on_timeout: raise
+

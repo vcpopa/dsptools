@@ -5,9 +5,12 @@ log_to:
 admins:
   - admin1
   - admin2
-on_error: warn
-verbose: true
-timeout_settings:
-  timeout_duration_seconds: 60
-  on_timeout: raise
+mode: TESTING
+flow_execution:
+  error_handling_settings:
+    on_error: "warn"
+  timeout_settings:
+    on_timeout: raise
+    timeout_duration: 60
+
 

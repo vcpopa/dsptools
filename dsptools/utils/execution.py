@@ -116,8 +116,10 @@ def parallelize_execution(
 
 import time
 
+
 class RetryTimeout(Exception):
     pass
+
 
 def retry(max_retries: int, retry_interval: int, enabled: bool = True):
     """
@@ -154,12 +156,13 @@ def retry(max_retries: int, retry_interval: int, enabled: bool = True):
                             time.sleep(retry_interval)
                 raise RetryTimeout(f"Max retries ({max_retries}) exceeded")
             else:
-                return func(*args, **kwargs)  # Decorator is disabled, execute the original function
+                return func(
+                    *args, **kwargs
+                )  # Decorator is disabled, execute the original function
 
         return wrapper
 
     return decorator
-
 
 
 def handle_failure(
@@ -235,7 +238,9 @@ def handle_failure(
                     else:
                         raise e  # Re-raise the exception if it's not in the list of exceptions to handle
             else:
-                return func(*func_args, **func_kwargs)  # Decorator is disabled, just call the original function
+                return func(
+                    *func_args, **func_kwargs
+                )  # Decorator is disabled, just call the original function
 
         return wrapper
 
@@ -319,9 +324,13 @@ def timeout(
                         )
 
                 # Allow the decorated function to continue running even after timeout
-                return None  # You may choose to return a default value or None on timeout
+                return (
+                    None  # You may choose to return a default value or None on timeout
+                )
             else:
-                return item(*args, **kwargs)  # Decorator is disabled, execute the original function
+                return item(
+                    *args, **kwargs
+                )  # Decorator is disabled, execute the original function
 
         return func_wrapper
 

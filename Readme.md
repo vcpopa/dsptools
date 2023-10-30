@@ -1,3 +1,11 @@
+[![Build Status](https://github.com/vcpopa/dsptools/actions/workflows/black.yml/badge.svg)](https://github.com/vcpopa/dsptools/actions/workflows/black.yml)
+
+[![Code Spellcheck Status](https://github.com/vcpopa/dsptools/actions/workflows/codespell.yml/badge.svg)](https://github.com/vcpopa/dsptools/actions/workflows/codespell.yml)
+
+[![Pylint Status](https://github.com/vcpopa/dsptools/actions/workflows/pylint.yml/badge.svg)](https://github.com/vcpopa/dsptools/actions/workflows/pylint.yml)
+
+[![pytest Status](https://github.com/vcpopa/dsptools/actions/workflows/pytest.yml/badge.svg)](https://github.com/vcpopa/dsptools/actions/workflows/pytest.yml)
+
 ## Requirements
 
 - [Putty.exe](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html): You must have Putty.exe installed and added to your system's PATH. This executable is required for some functionalities in this package.

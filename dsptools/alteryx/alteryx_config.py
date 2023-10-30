@@ -133,15 +133,17 @@ def run_alteryx_from_config(config_path: str) -> None:
         raise ValueError(f"Invalid configuration: {e.errors()}")
 
     # Extract configuration data using square brackets for dictionary access
-    path_to_alteryx = config['path_to_alteryx']
-    log_to = config['log_to']
-    admins = config['admins']
-    mode = config['mode']
+    path_to_alteryx = config["path_to_alteryx"]
+    log_to = config["log_to"]
+    admins = config["admins"]
+    mode = config["mode"]
 
     # Create an AlteryxEngine instance
-    alteryx_flow = AlteryxEngine(path_to_alteryx=path_to_alteryx, log_to=log_to, mode=mode)
+    alteryx_flow = AlteryxEngine(
+        path_to_alteryx=path_to_alteryx, log_to=log_to, mode=mode
+    )
 
-    flow_execution = config['flow_execution']
+    flow_execution = config["flow_execution"]
     if not flow_execution:
         # If no flow execution settings are provided, run Alteryx without timeouts or error handling
         alteryx_flow.run()
@@ -150,17 +152,17 @@ def run_alteryx_from_config(config_path: str) -> None:
         catch_errors_enabled = True
         timeout_enabled = True
         on_error = "skip"
-        error_handling_settings = flow_execution['error_handling_settings']
-        timeout_settings = flow_execution['timeout_settings']
+        error_handling_settings = flow_execution["error_handling_settings"]
+        timeout_settings = flow_execution["timeout_settings"]
         if error_handling_settings is None:
             catch_errors_enabled = False
         else:
-            on_error = error_handling_settings['on_error']
+            on_error = error_handling_settings["on_error"]
         if timeout_settings is None:
             timeout_enabled = False
         else:
-            on_timeout = timeout_settings['on_timeout']
-            timeout_duration = timeout_settings['timeout_duration']
+            on_timeout = timeout_settings["on_timeout"]
+            timeout_duration = timeout_settings["timeout_duration"]
 
         # Define a function that runs Alteryx with specified error handling and timeouts
         @handle_failure(

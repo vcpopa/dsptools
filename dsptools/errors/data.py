@@ -7,7 +7,9 @@ class EmailAttachmentError(Exception):
     attachments.
 
     """
+
     pass
+
 
 class SFTPError(Exception):
     """
@@ -17,7 +19,9 @@ class SFTPError(Exception):
     or other SFTP-related operations.
 
     """
+
     pass
+
 
 class AzureStorageBlobError(Exception):
     """
@@ -27,7 +31,9 @@ class AzureStorageBlobError(Exception):
     uploading, downloading, or managing blobs within an Azure Storage account.
 
     """
+
     pass
+
 
 class AzureStorageBlobConnectionError(Exception):
     """
@@ -37,4 +43,5 @@ class AzureStorageBlobConnectionError(Exception):
     including issues like authentication failures, network problems, or service unavailability.
 
     """
+
     pass

@@ -6,7 +6,9 @@ class PollingTimeoutError(Exception):
     to be met, has exceeded the allowed time for waiting.
 
     """
+
     pass
+
 
 class PollingExecutableError(Exception):
     """
@@ -16,7 +18,9 @@ class PollingExecutableError(Exception):
     such as errors in external executables or scripts used for polling.
 
     """
+
     pass
+
 
 class PollingConditionError(Exception):
     """
@@ -26,7 +30,9 @@ class PollingConditionError(Exception):
     state or event, is not met, and the polling operation cannot proceed.
 
     """
+
     pass
+
 
 class RetryTimeout(Exception):
     """
@@ -36,7 +42,9 @@ class RetryTimeout(Exception):
     has exceeded the allowed time for retrying.
 
     """
+
     pass
+
 
 class TeamsMessageError(Exception):
     """
@@ -46,4 +54,5 @@ class TeamsMessageError(Exception):
     Microsoft Teams channel or workspace.
 
     """
+
     pass

@@ -6,8 +6,10 @@ class AlteryxEngineError(Exception):
     or related operations.
 
     """
-    #TODO this is a catch all that should be split into multiple specific errors
+
+    # TODO this is a catch all that should be split into multiple specific errors
     pass
+
 
 class AlteryxNotFound(Exception):
     """
@@ -17,7 +19,9 @@ class AlteryxNotFound(Exception):
     expected to exist but cannot be found.
 
     """
+
     pass
+
 
 class NotAnAlteryxError(Exception):
     """
@@ -27,7 +31,9 @@ class NotAnAlteryxError(Exception):
     characteristics or type associated with Alteryx.
 
     """
+
     pass
+
 
 class AlteryxLoggerError(Exception):
     """
@@ -37,4 +43,5 @@ class AlteryxLoggerError(Exception):
     workflows or related operations.
 
     """
+
     pass

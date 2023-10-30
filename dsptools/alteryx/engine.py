@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Literal, Union
+from typing import Dict, Literal
 import os
 import subprocess
-import multiprocessing
 import yaml
 from sqlalchemy import create_engine
 import warnings
@@ -12,7 +11,6 @@ from dsptools.errors.alteryx import (
     AlteryxEngineError,
     AlteryxLoggerError,
 )
-from dsptools.utils.notifications import handle_failure, timeout
 
 
 class AlteryxEngineScaffold(ABC):
@@ -61,24 +59,40 @@ class AlteryxEngine(AlteryxEngineScaffold):
         self,
         path_to_alteryx: str,
         log_to: Dict[str, str],
-        admins: List[Union[str, None]] = None,
-        on_error: Literal["ignore", "warn", "raise"] = "raise",
+        mode: Literal["PRODUCTION", "TEST", "RELEASE"],
         verbose: bool = False,
-    ) -> bool:
+    ) -> None:
         """
         Initialize a new AlteryxEngine instance.
 
         Args:
-            path_to_alteryx (str): The path to the Alteryx workflow file (.yxmd).It is recommended to use the absolute path to avoid execution errors.
-            log_to (Dict[str, str]): A dictionary containing information on where to log the execution results. It should include the keys 'table' and 'connection_string'.
-            admins (List[str], optional): A list of admin usernames. Required if 'on_error' is set to 'warn'. Defaults to None.
-            on_error (Literal['ignore', 'warn', 'raise'], optional): The action to take on workflow errors. Must be one of 'ignore', 'warn', or 'raise'. Defaults to 'raise'.
+            path_to_alteryx (str): The path to the Alteryx workflow file (.yxmd). It is recommended to use the absolute path to avoid execution errors.
+            log_to (Dict[str, str]): A dictionary containing information on where to log the execution results.
+                It should include the keys 'table' and 'connection_string'.
+            mode (Literal['PRODUCTION', 'TEST', 'RELEASE']): The execution mode for Alteryx, must be one of 'PRODUCTION', 'TEST', or 'RELEASE'.
             verbose (bool, optional): Whether to enable verbose output. Defaults to False.
+
+        Returns:
+            None
 
         Raises:
             AlteryxNotFound: If the specified Alteryx workflow file does not exist.
             NotAnAlteryxError: If the specified file is not a valid Alteryx workflow.
-            AttributeError: If the 'on_error' value, 'admins', or 'log_to' dictionary are invalid.
+            AttributeError: If the 'log_to' dictionary is missing keys or if 'mode' is not one of the allowed modes.
+
+        Note:
+            The 'mode' parameter specifies the execution mode of the Alteryx workflow. You should choose one of the following modes:
+            - 'PRODUCTION': Use this mode for production execution.
+            - 'TEST': Use this mode for testing purposes.
+            - 'RELEASE': Use this mode for a final release.
+
+        Example:
+            engine = AlteryxEngine(
+                path_to_alteryx='/path/to/your/workflow.yxmd',
+                log_to={'table': 'output_table', 'connection_string': 'your_database_connection'},
+                mode='PRODUCTION',
+                verbose=True
+            )
         """
         # Constructor implementation here
         if not os.path.exists(path_to_alteryx):
@@ -87,26 +101,14 @@ class AlteryxEngine(AlteryxEngineScaffold):
             raise NotAnAlteryxError(
                 "The specified file is not a valid Alteryx workflow"
             )
-
-        if on_error not in ["ignore", "warn", "raise"]:
-            raise AttributeError(
-                f"on_error must be one of ['ignore','warn','raise'], you specified {on_error}"
-            )
-
-        if on_error == "warn" and admins is None:
-            raise AttributeError(
-                f"At least one admin must be provided if your workflow if on_error = 'warn'"
-            )
-
         if "table" not in log_to.keys() or "connection_string" not in log_to.keys():
             raise AttributeError(
                 f"The log_to parameter must be a dict with the following keys: 'table','connection_string'. You provided {', '.join(log_to.keys())}"
             )
         self.path_to_alteryx = path_to_alteryx
         self.log_to = log_to
-        self.admins = admins
-        self.on_error = on_error
         self.verbose = verbose
+        self.mode = mode
         if self.verbose is True:
             print("Alteryx flow initialized successfully. Ready to start")
 
@@ -132,43 +134,29 @@ class AlteryxEngine(AlteryxEngineScaffold):
             command, stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid
         )
         while True:
-            try:
-                line = self.process.stdout.readline()
-                line = (
-                    line.replace("'", "")
-                    .replace(",", "")
-                    .replace("\r", "")
-                    .replace("\n", "")
-                )
-                self.check_for_error_and_log_message(line=line)
-                line = self.process.stderr.readline()
-                line = (
-                    line.replace("'", "")
-                    .replace(",", "")
-                    .replace("\r", "")
-                    .replace("\n", "")
-                )
-                if not line:
-                    break
-                self.check_for_error_and_log_message(line=line)
+            line = self.process.stdout.readline()
+            line = (
+                line.replace("'", "")
+                .replace(",", "")
+                .replace("\r", "")
+                .replace("\n", "")
+            )
+            self.check_for_error_and_log_message(line=line)
+            line = self.process.stderr.readline()
+            line = (
+                line.replace("'", "")
+                .replace(",", "")
+                .replace("\r", "")
+                .replace("\n", "")
+            )
+            if not line:
+                if self.verbose is True:
+                    print("Alteryx worflow completed")
+                break
 
-            except AlteryxEngineError as e:
-                self.log_to_sql(
-                    log_message="FATAL ERROR - ALTERYX STOPPED", logging_level="ERROR"
-                )
-                if self.verbose is True:
-                    print("FATAL ERROR - ALTERYX STOPPING")
-                self.stop()
-                return False
-            except multiprocessing.TimeoutError as e:
-                self.log_to_sql(
-                    log_message="TIMEOUT ERROR - ALTERYX STOPPED", logging_level="ERROR"
-                )
-                if self.verbose is True:
-                    print("TIMEOUT ERROR - ALTERYX STOPPING")
-                self.stop()
-                return False
-        return True
+            self.check_for_error_and_log_message(line=line)
+            if self.verbose is True:
+                print(line)
 
     def stop(self) -> None:
         """
@@ -186,36 +174,37 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         Raises:
             ProcessLookupError: If the subprocess has already exited when attempting to terminate.
-
-        Example:
-            engine = AlteryxEngine(...)
-            engine.run()  # Start the subprocess
-            # ... (do some work)
-            engine.stop()  # Stop the subprocess gracefully or forcefully.
+            AlteryxEngineError: If the subprocess is still running after forceful termination.
         """
-        try:
-            self.process.terminate()
-            self.process.wait()  # Wait for the process to exit
-
-            if self.verbose:
-                print("Process exited gracefully.")
-        except ProcessLookupError:
+        if self.process.poll() is not None:
             if self.verbose:
                 print("Process has already exited.")
-        except:
+        else:
+            self.process.terminate()
+            self.process.wait()
+
+            if self.verbose:
+                print(f"PID {self.process.pid}: Graceful exit signal sent")
+
+        # Check if the process is still running
+        if self.process.poll() is None:
             if self.verbose:
                 print(
-                    "Process did not respond to termination signal. Attempting forceful exit."
+                    f"PID {self.process.pid}: Process did not respond to termination signal. Attempting forceful exit."
                 )
             self.process.kill()
 
-            # Check if the process is still running
-            try:
-                self.process.wait(timeout=1)  # Wait for the process to exit
-            except subprocess.TimeoutExpired as e:
+            # Check if the process is still running after forceful termination
+            if self.process.poll() is None:
                 if self.verbose:
-                    print("Process is still running after forceful termination.")
-                    raise e from e
+                    print(
+                        f"PID {self.process.pid}: Process is still running after forceful termination."
+                    )
+                raise AlteryxEngineError(
+                    "Process is still running after forceful termination."
+                )
+            else:
+                print(f"PID {self.process.pid}: Forceful termination successful")
 
     def log_to_sql(
         self, log_message: str, logging_level: Literal["INFO", "WARNING", "ERROR"]
@@ -241,6 +230,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
         """
         alteryx_name = os.path.basename(self.path_to_alteryx)
         alteryx_name = alteryx_name.replace(".yxmd", "")
+        alteryx_name = f"{alteryx_name}_{self.mode}"
 
         # Check if the logging level is valid
         valid_logging_levels = {"INFO", "WARNING", "ERROR"}
@@ -268,7 +258,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
             if not table_exists:
                 warnings.warn(
-                    f"Log table '{self.log_to['table']}' does not exist so it will be created",
+                    f"Log table '{self.log_to['table']}' was created!",
                     UserWarning,
                 )
                 # Log table doesn't exist, create it
@@ -286,136 +276,42 @@ class AlteryxEngine(AlteryxEngineScaffold):
             insert_query = f"INSERT INTO {self.log_to['table']} (filename, Created, Message, LoggingLevel) VALUES ('{alteryx_name}', getdate(), '{log_message}', '{logging_level}')"
             conn.execute(insert_query)
 
-    def check_for_error_and_log_message(self, line: str) -> None:
+    def check_for_error_and_log_message(self, log_message: str) -> None:
         """
         Check a log message for specific error conditions and log it to a SQL database.
 
-        This method examines a log message to identify specific error conditions and logs them with the appropriate severity
-        in a SQL database.
+        This method examines a log message for specific error conditions and logs them with the appropriate severity
+        in a SQL database. If the message contains both 'error' and 'warning' keywords, it's logged as a warning.
 
         Args:
-            line (str): The log message to be checked and logged.
+            log_message (str): The log message to be checked and logged.
 
         Returns:
-            None: This method logs the message to a SQL database and does not return a value.
+            None: This method logs the message to a SQL database and may raise an error, but it does not return a value.
         """
-        # Define the keywords associated with error conditions
-        error_keywords = [
-            "Blocking",
-            "Unable to translate Alias",
-            "Error opening the file",
-            "Error",
-        ]
-
         # Convert the log message to lowercase for case-insensitive checks
-        lower_line = line.lower()
+        lower_message = log_message.lower()
 
         # Initialize error message and logging level
-        error_message = f"Failure: {line}"
+        error_message = f"Failure: {log_message}"
         logging_level = "ERROR"
 
         # Check if the log message contains any error keywords
-        if any(keyword.lower() in lower_line for keyword in error_keywords):
-            if self.on_error == "raise":
+        if "error" in lower_message:
+            if "warning" in lower_message:
+                logging_level = "WARNING"
+                if self.verbose:
+                    warnings.warn(log_message)
+                    self.log_to_sql(
+                        log_message=error_message, logging_level=logging_level
+                    )
+            else:
+                if self.verbose:
+                    warnings.warn(log_message)
+                self.log_to_sql(log_message=error_message, logging_level=logging_level)
                 raise AlteryxEngineError(
                     f"Exit raised by the following error: {error_message}"
                 )
-        elif "Warning".lower() in lower_line:
-            logging_level = "WARNING"
-
-        # Log the message based on the determined logging level
-        self.log_to_sql(
-            log_message=error_message if logging_level == "ERROR" else line,
-            logging_level=logging_level,
-        )
-
-
-def run_alteryx_from_config(config_path: str) -> None:
-    """
-    Run an Alteryx workflow based on configuration provided in a YAML file.
-
-    This function reads a YAML configuration file to determine how to run an Alteryx workflow.
-    It initializes an `AlteryxEngine` instance with the specified configuration, including the path
-    to the Alteryx workflow, logging settings, and error handling. It then decorates the execution of
-    the workflow using the `@handle_failure` and `@timeout` decorators, which add error handling and
-    timeout functionality. The decorated workflow is executed within this function.
-
-    Args:
-        config_path (str): The path to the YAML configuration file.
-
-    Raises:
-        ValueError: If the provided configuration file is not a YAML file.
-
-    Example YAML Configuration File:
-    ```yaml
-    path_to_alteryx: /path/to/your/workflow.yxmd
-    log_to:
-      table: log_table
-      connection_string: your_connection_string
-    admins:
-      - admin1
-      - admin2
-    on_error: warn
-    verbose: true
-    timeout_settings:
-      timeout_duration_seconds: 3600
-      on_timeout: warn
-    ```
-
-    Example Usage:
-    ```python
-    run_alteryx_from_config("config.yaml")
-    ```
-
-    Args:
-        config_path (str): The path to the YAML configuration file.
-
-    Returns:
-        None
-
-    """
-    if not config_path.endswith(".yml") and not config_path.endswith(".yaml"):
-        raise ValueError("This function only supports yaml configuration files")
-
-    with open(config_path) as f:
-        config = yaml.safe_load(f)
-
-    print(config)
-    path_to_alteryx = config["path_to_alteryx"]
-    log_to = {
-        "table": config["log_to"]["table"],
-        "connection_string": config["log_to"]["connection_string"],
-    }
-    admins = config["admins"]
-    verbose = config["verbose"]
-    on_error = config["on_error"]
-    max_timeout = config["timeout_settings"]["timeout_duration_seconds"]
-    on_timeout = config["timeout_settings"]["on_timeout"]
-    alteryx_flow = AlteryxEngine(
-        path_to_alteryx=path_to_alteryx,
-        log_to=log_to,
-        admins=admins,
-        verbose=verbose,
-        on_error=on_error,
-    )
-
-    @handle_failure(
-        handle=[
-            AlteryxEngineError,
-            multiprocessing.TimeoutError,
-            subprocess.TimeoutExpired,
-        ],
-        on_error=on_error,
-        emails=admins,
-    )
-    @timeout(
-        max_timeout,
-        on_timeout=on_timeout,
-        emails=admins,
-        subject=f"{os.path.basename(path_to_alteryx)} TIMEOUT",
-        message=f"{os.path.basename(path_to_alteryx)} timed out after {max_timeout/60} minutes",
-    )
-    def run_wrapper(alteryx: AlteryxEngine) -> None:
-        alteryx.run()
-
-    run_wrapper(alteryx=alteryx_flow)
+        else:
+            # Log the message to a SQL database even if there's no error
+            self.log_to_sql(log_message=log_message, logging_level=logging_level)

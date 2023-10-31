@@ -11,24 +11,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # https://help.github.com/articles/virtual-environments-for-github-actions
         platform:
-          - ubuntu-latest  # ubuntu-20.04
-          - windows-latest  # windows-2022
-        python-version: [3.9, '3.10', '3.11']
+          - ubuntu-latest
+          - windows-latest
+        python-version:
+          - '3.10'
+          - '3.11'
 
     steps:
-    - uses: actions/checkout@v3
-      if: ${{ ! startsWith(matrix.python-version, 'pypy-') }}
-    - uses: actions/checkout@v1
-      if: ${{ startsWith(matrix.python-version, 'pypy-') }}
+    - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r pytest_requirements.txt
-    - name: Test with tox
+    - name: Test with Tox
       run: tox

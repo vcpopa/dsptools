@@ -1,4 +1,5 @@
 from typing import List, Union, Literal
+import yaml
 from pydantic import BaseModel, validator
 from dsptools.alteryx.engine import AlteryxEngine
 from dsptools.errors.alteryx import AlteryxEngineError
@@ -152,6 +153,7 @@ def run_alteryx_from_config(config_path: str) -> None:
         catch_errors_enabled = True
         timeout_enabled = True
         on_error = "skip"
+        on_timeout='warn'
         error_handling_settings = flow_execution["error_handling_settings"]
         timeout_settings = flow_execution["timeout_settings"]
         if error_handling_settings is None:

@@ -1,56 +1,10 @@
 Module dsptools.alteryx.engine
 ==============================
 
-Functions
----------
-
-    
-`run_alteryx_from_config(config_path: str) ‑> None`
-:   Run an Alteryx workflow based on configuration provided in a YAML file.
-    
-    This function reads a YAML configuration file to determine how to run an Alteryx workflow.
-    It initializes an `AlteryxEngine` instance with the specified configuration, including the path
-    to the Alteryx workflow, logging settings, and error handling. It then decorates the execution of
-    the workflow using the `@handle_failure` and `@timeout` decorators, which add error handling and
-    timeout functionality. The decorated workflow is executed within this function.
-    
-    Args:
-        config_path (str): The path to the YAML configuration file.
-    
-    Raises:
-        ValueError: If the provided configuration file is not a YAML file.
-    
-    Example YAML Configuration File:
-    ```yaml
-    path_to_alteryx: /path/to/your/workflow.yxmd
-    log_to:
-      table: log_table
-      connection_string: your_connection_string
-    admins:
-      - admin1
-      - admin2
-    on_error: warn
-    verbose: true
-    timeout_settings:
-      timeout_duration_seconds: 3600
-      on_timeout: warn
-    ```
-    
-    Example Usage:
-    ```python
-    run_alteryx_from_config("config.yaml")
-    ```
-    
-    Args:
-        config_path (str): The path to the YAML configuration file.
-    
-    Returns:
-        None
-
 Classes
 -------
 
-`AlteryxEngine(path_to_alteryx: str, log_to: Dict[str, str], admins: List[Optional[str]] = None, on_error: Literal['ignore', 'warn', 'raise'] = 'raise', verbose: bool = False)`
+`AlteryxEngine(path_to_alteryx: str, log_to: Dict[str, str], mode: Literal['PRODUCTION', 'TEST', 'RELEASE'], verbose: bool = False)`
 :   Represents an Alteryx Engine for executing Alteryx workflows.
     
     This class allows you to interact with Alteryx workflows and control their execution.
@@ -79,16 +33,33 @@ Classes
     Initialize a new AlteryxEngine instance.
     
     Args:
-        path_to_alteryx (str): The path to the Alteryx workflow file (.yxmd).It is recommended to use the absolute path to avoid execution errors.
-        log_to (Dict[str, str]): A dictionary containing information on where to log the execution results. It should include the keys 'table' and 'connection_string'.
-        admins (List[str], optional): A list of admin usernames. Required if 'on_error' is set to 'warn'. Defaults to None.
-        on_error (Literal['ignore', 'warn', 'raise'], optional): The action to take on workflow errors. Must be one of 'ignore', 'warn', or 'raise'. Defaults to 'raise'.
+        path_to_alteryx (str): The path to the Alteryx workflow file (.yxmd). It is recommended to use the absolute path to avoid execution errors.
+        log_to (Dict[str, str]): A dictionary containing information on where to log the execution results.
+            It should include the keys 'table' and 'connection_string'.
+        mode (Literal['PRODUCTION', 'TEST', 'RELEASE']): The execution mode for Alteryx, must be one of 'PRODUCTION', 'TEST', or 'RELEASE'.
         verbose (bool, optional): Whether to enable verbose output. Defaults to False.
+    
+    Returns:
+        None
     
     Raises:
         AlteryxNotFound: If the specified Alteryx workflow file does not exist.
         NotAnAlteryxError: If the specified file is not a valid Alteryx workflow.
-        AttributeError: If the 'on_error' value, 'admins', or 'log_to' dictionary are invalid.
+        AttributeError: If the 'log_to' dictionary is missing keys or if 'mode' is not one of the allowed modes.
+    
+    Note:
+        The 'mode' parameter specifies the execution mode of the Alteryx workflow. You should choose one of the following modes:
+        - 'PRODUCTION': Use this mode for production execution.
+        - 'TEST': Use this mode for testing purposes.
+        - 'RELEASE': Use this mode for a final release.
+    
+    Example:
+        engine = AlteryxEngine(
+            path_to_alteryx='/path/to/your/workflow.yxmd',
+            log_to={'table': 'output_table', 'connection_string': 'your_database_connection'},
+            mode='PRODUCTION',
+            verbose=True
+        )
 
     ### Ancestors (in MRO)
 
@@ -97,17 +68,17 @@ Classes
 
     ### Methods
 
-    `check_for_error_and_log_message(self, line: str) ‑> None`
+    `check_for_error_and_log_message(self, log_message: str) ‑> None`
     :   Check a log message for specific error conditions and log it to a SQL database.
         
-        This method examines a log message to identify specific error conditions and logs them with the appropriate severity
-        in a SQL database.
+        This method examines a log message for specific error conditions and logs them with the appropriate severity
+        in a SQL database. If the message contains both 'error' and 'warning' keywords, it's logged as a warning.
         
         Args:
-            line (str): The log message to be checked and logged.
+            log_message (str): The log message to be checked and logged.
         
         Returns:
-            None: This method logs the message to a SQL database and does not return a value.
+            None: This method logs the message to a SQL database and may raise an error, but it does not return a value.
 
     `log_to_sql(self, log_message: str, logging_level: Literal['INFO', 'WARNING', 'ERROR']) ‑> None`
     :   Log a message to a SQL database with the specified logging level.
@@ -152,12 +123,7 @@ Classes
         
         Raises:
             ProcessLookupError: If the subprocess has already exited when attempting to terminate.
-        
-        Example:
-            engine = AlteryxEngine(...)
-            engine.run()  # Start the subprocess
-            # ... (do some work)
-            engine.stop()  # Stop the subprocess gracefully or forcefully.
+            AlteryxEngineError: If the subprocess is still running after forceful termination.
 
 `AlteryxEngineScaffold()`
 :   Helper class that provides a standard way to create an ABC using

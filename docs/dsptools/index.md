@@ -1,5 +1,5 @@
-Namespace dsptools
-==================
+Module dsptools
+===============
 
 Sub-modules
 -----------

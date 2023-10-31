@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import List, Tuple, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from azure.storage.blob import BlobServiceClient, ContainerClient
@@ -20,6 +21,7 @@ def connect_to_azure_blob(
         container_client (ContainerClient): Azure Blob Storage container client, or None if failure.
 
     Raises:
+        AzureStorageBlobError: A catch all error class
         AzureStorageBlobConnectionError: If there is an issue connecting to the Azure Blob Storage container.
 
     Example:

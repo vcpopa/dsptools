@@ -1,3 +1,4 @@
+# pylint: disable = unnecessary-pass
 class EmailAttachmentError(Exception):
     """
     Exception raised for errors related to email attachment handling.

@@ -1,3 +1,4 @@
+# pylint: skip-file
 import pytest
 from dsptools.utils.execution import timeout
 import multiprocessing

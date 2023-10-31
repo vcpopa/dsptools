@@ -1,5 +1,9 @@
-from typing import List, Union, Literal
+# pylint:disable=no-self-argument
+# pylint:disable=consider-alternative-union-syntax
+from __future__ import annotations
+from typing import Union, Literal
 import yaml
+import pydantic
 from pydantic import BaseModel, validator
 from dsptools.alteryx.engine import AlteryxEngine
 from dsptools.errors.alteryx import AlteryxEngineError
@@ -63,7 +67,7 @@ class AlteryxConfigModel(BaseModel):
     Args:
         path_to_alteryx (str): The path to the Alteryx workflow file (.yxmd).
         mode (Literal["PRODUCTION", "TESTING", "RELEASE"]): The execution mode of the Alteryx workflow.
-        admins (List[str]): A list of administrators for the Alteryx workflow.
+        admins (list[str]): A list of administrators for the Alteryx workflow.
         flow_execution (FlowExecution): Optional flow execution settings.
         log_to (LogTo): Logging settings.
 
@@ -76,7 +80,7 @@ class AlteryxConfigModel(BaseModel):
 
     path_to_alteryx: str
     mode: Literal["PRODUCTION", "TESTING", "RELEASE"]
-    admins: List[str]
+    admins: list[str]
     flow_execution: Union[None, FlowExecution]
     log_to: LogTo
 
@@ -125,13 +129,13 @@ def run_alteryx_from_config(config_path: str) -> None:
         ValueError: If the configuration YAML is invalid or missing required fields.
     """
     # Load the configuration from the YAML file
-    with open(config_path) as f:
+    with open(config_path, encoding="utf-8") as f:
         config_data = yaml.safe_load(f)
 
     try:
         config = AlteryxConfigModel(**config_data)
     except pydantic.error_wrappers.ValidationError as e:
-        raise ValueError(f"Invalid configuration: {e.errors()}")
+        raise ValueError(f"Invalid configuration: {e.errors()}") from e
 
     # Extract configuration data using square brackets for dictionary access
     path_to_alteryx = config["path_to_alteryx"]
@@ -168,10 +172,16 @@ def run_alteryx_from_config(config_path: str) -> None:
 
         # Define a function that runs Alteryx with specified error handling and timeouts
         @handle_failure(
-            handle=[AlteryxEngineError], on_error=on_error, enabled=catch_errors_enabled
+            handle=[AlteryxEngineError],
+            on_error=on_error,
+            enabled=catch_errors_enabled,
+            emails=admins,
         )
         @timeout(
-            max_timeout=timeout_duration, on_timeout=on_timeout, enabled=timeout_enabled
+            max_timeout=timeout_duration,
+            on_timeout=on_timeout,
+            enabled=timeout_enabled,
+            emails=admins,
         )
         def run_wrapper(alteryx: AlteryxEngine) -> None:
             alteryx.run()

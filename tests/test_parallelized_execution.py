@@ -1,3 +1,4 @@
+# pylint: skip-file
 import time
 import pytest
 from dsptools.utils.execution import parallelize_execution

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import subprocess
 from typing import Tuple, List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
@@ -50,7 +51,7 @@ def download_sftp(
             raise SFTPError(f"pscp process raised the following error: {error}")
 
     except subprocess.CalledProcessError as e:
-        raise SFTPError(f"Error downloading file: {e}")
+        raise SFTPError(f"Error downloading file: {e}") from e
 
     return destination_file_path
 
@@ -129,6 +130,7 @@ def list_files_with_properties(
         List[Dict[str, Any]]: A list of dictionaries containing file properties.
 
     Raises:
+        Exception: catch all
         ValueError: If both 'password' and 'keyfile' are provided.
 
     Example:
@@ -139,6 +141,7 @@ def list_files_with_properties(
             sftp_path="/remote/folder",
         )
     """
+    # TODO create a custom exception class
     if password and keyfile:
         raise ValueError("Use either 'password' or 'keyfile', not both.")
 

@@ -62,7 +62,7 @@ py-version = 3.7.2
 limit-inference-results=100
 
 # Specify a score threshold under which the program will exit with error.
-fail-under=8.0
+fail-under=8.5
 
 # Return non-zero exit code if any of these messages/categories are detected,
 # even if score is above --fail-under value. Syntax same as enable. Messages
@@ -417,7 +417,7 @@ max-args = 9
 max-locals = 19
 
 # Maximum number of return / yield for function / method body
-max-returns=11
+max-returns=5
 
 # Maximum number of branch for function / method body
 max-branches = 20
@@ -429,7 +429,7 @@ max-statements = 50
 max-attributes=11
 
 # Maximum number of statements in a try-block
-max-try-statements = 7
+max-try-statements = 10
 
 [CLASSES]
 

@@ -1,3 +1,4 @@
+# pylint: skip-file
 import random
 import pytest
 from dsptools.utils.execution import retry, RetryTimeout

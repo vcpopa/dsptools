@@ -1,3 +1,4 @@
+# pylint: disable = unnecessary-pass
 class AlteryxEngineError(Exception):
     """
     Exception raised for errors related to Alteryx engine operations.

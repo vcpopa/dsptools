@@ -1,3 +1,4 @@
+# pylint: disable = unnecessary-pass
 class PollingTimeoutError(Exception):
     """
     Exception raised when a polling operation times out.

@@ -1,3 +1,4 @@
+# pylint: skip-file
 import pytest
 import random
 from dsptools.utils.execution import (

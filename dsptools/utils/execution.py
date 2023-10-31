@@ -1,3 +1,5 @@
+# pylint: disable = keyword-arg-before-vararg
+from __future__ import annotations
 import time
 from typing import Callable, Any, Union, List, Literal
 from functools import wraps
@@ -32,13 +34,11 @@ def conditional_polling(
         *args: Positional arguments to be passed to the `function`.
         **kwargs: Keyword arguments to be passed to the `function`.
 
-    Returns:
-        None
-
     Raises:
         PollingTimeoutError: If the maximum duration is exceeded.
         PollingExecutableError: If an error occurs during function execution.
         PollingConditionError: If an error occurs in the condition function.
+        ValueError: If params don't match constrains
 
     Example:
         def custom_function(param):
@@ -63,7 +63,7 @@ def conditional_polling(
         except Exception as e:
             raise PollingExecutableError(
                 f"An error occurred during function execution: {str(e)}"
-            )
+            ) from e
 
         try:
             if condition(result):
@@ -71,7 +71,7 @@ def conditional_polling(
         except Exception as e:
             raise PollingConditionError(
                 f"An error occurred in the condition function: {str(e)}"
-            )
+            ) from e
 
         elapsed_time = time.time() - start_time
         if elapsed_time >= max_duration:
@@ -112,13 +112,6 @@ def parallelize_execution(
         executor.shutdown()
 
     return results
-
-
-import time
-
-
-class RetryTimeout(Exception):
-    pass
 
 
 def retry(max_retries: int, retry_interval: int, enabled: bool = True):

@@ -1,10 +1,10 @@
+from __future__ import annotations
 from abc import ABC, abstractmethod
+import warnings
 from typing import Dict, Literal
 import os
 import subprocess
-import yaml
 from sqlalchemy import create_engine
-import warnings
 from dsptools.errors.alteryx import (
     AlteryxNotFound,
     NotAnAlteryxError,
@@ -23,7 +23,9 @@ class AlteryxEngineScaffold(ABC):
         pass
 
     @abstractmethod
-    def log_to_sql(self) -> None:
+    def log_to_sql(
+        self, log_message: str, logging_level: Literal["INFO", "WARNING", "ERROR"]
+    ) -> None:
         pass
 
 
@@ -120,19 +122,13 @@ class AlteryxEngine(AlteryxEngineScaffold):
         the Alteryx Engine command-line tool. It captures the workflow's execution logs, checks for errors, and logs
         the messages based on the specified logging settings.
 
-        Returns:
-            None
-
         """
-        command = r'"C:\Program Files\Alteryx\bin\AlteryxEngineCmd.exe" "{}"'.format(
-            self.path_to_alteryx
-        )
+        command = rf'"C:\Program Files\Alteryx\bin\AlteryxEngineCmd.exe" "{self.path_to_alteryx}"'
+
         if self.verbose is True:
             print("Alteryx is starting...")
 
-        self.process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid
-        )
+        self.process = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
         while True:
             line = self.process.stdout.readline()
             line = (
@@ -141,7 +137,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 .replace("\r", "")
                 .replace("\n", "")
             )
-            self.check_for_error_and_log_message(line=line)
+            self.check_for_error_and_log_message(log_message=line)
             line = self.process.stderr.readline()
             line = (
                 line.replace("'", "")
@@ -151,10 +147,10 @@ class AlteryxEngine(AlteryxEngineScaffold):
             )
             if not line:
                 if self.verbose is True:
-                    print("Alteryx worflow completed")
+                    print("Alteryx workflow completed")
                 break
 
-            self.check_for_error_and_log_message(line=line)
+            self.check_for_error_and_log_message(log_message=line)
             if self.verbose is True:
                 print(line)
 
@@ -168,9 +164,6 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         If the subprocess is still running after forceful termination, it indicates that
         the subprocess might not be responding or exiting properly.
-
-        Returns:
-            None: This method doesn't return any value.
 
         Raises:
             ProcessLookupError: If the subprocess has already exited when attempting to terminate.
@@ -203,8 +196,8 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 raise AlteryxEngineError(
                     "Process is still running after forceful termination."
                 )
-            else:
-                print(f"PID {self.process.pid}: Forceful termination successful")
+
+            print(f"PID {self.process.pid}: Forceful termination successful")
 
     def log_to_sql(
         self, log_message: str, logging_level: Literal["INFO", "WARNING", "ERROR"]
@@ -286,8 +279,6 @@ class AlteryxEngine(AlteryxEngineScaffold):
         Args:
             log_message (str): The log message to be checked and logged.
 
-        Returns:
-            None: This method logs the message to a SQL database and may raise an error, but it does not return a value.
         """
         # Convert the log message to lowercase for case-insensitive checks
         lower_message = log_message.lower()

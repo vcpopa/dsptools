@@ -153,7 +153,7 @@ def run_alteryx_from_config(config_path: str) -> None:
         catch_errors_enabled = True
         timeout_enabled = True
         on_error = "skip"
-        on_timeout='warn'
+        on_timeout = "warn"
         error_handling_settings = flow_execution["error_handling_settings"]
         timeout_settings = flow_execution["timeout_settings"]
         if error_handling_settings is None:

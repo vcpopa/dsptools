@@ -1,7 +1,8 @@
 # pylint: skip-file
 import random
 import pytest
-from dsptools.utils.execution import retry, RetryTimeout
+from dsptools.utils.execution import retry
+from dsptools.errors.execution import RetryTimeout
 
 
 # Mock functions for testing

@@ -6,13 +6,13 @@ import os
 import subprocess
 from sqlalchemy import create_engine
 from dsptools.utils.execution import conditional_polling
-from dsptools.alteryx.pid_utils import list_child_processes,check_pid,kill_pid
+from dsptools.alteryx.pid_utils import list_child_processes, check_pid, kill_pid
 from dsptools.errors.alteryx import (
     AlteryxNotFound,
     NotAnAlteryxError,
     AlteryxEngineError,
     AlteryxLoggerError,
-    AlteryxKillError
+    AlteryxKillError,
 )
 
 
@@ -33,6 +33,31 @@ class AlteryxEngineScaffold(ABC):
 
 
 class AlteryxEngine(AlteryxEngineScaffold):
+    """
+    Custom class for managing and running Alteryx workflows.
+
+    Args:
+        path_to_alteryx (str): Path to the Alteryx workflow file (.yxmd).
+        log_to (Dict[str, str]): Logging settings for execution results.
+        mode (Literal["PRODUCTION", "TEST", "RELEASE"]): Execution mode.
+        verbose (bool, optional): Whether to print verbose messages. Defaults to False.
+
+    Attributes:
+        path_to_alteryx (str): Path to the Alteryx workflow file.
+        log_to (Dict[str, str]): Logging settings for execution results.
+        mode (Literal["PRODUCTION", "TEST", "RELEASE"]): Execution mode.
+        verbose (bool): Whether to print verbose messages.
+        process: Subprocess for running the Alteryx workflow.
+        parent_pid: Process ID of the parent Alteryx process.
+        child_pid: Process ID of the child Alteryx process.
+
+    Raises:
+        AlteryxNotFound: If the specified Alteryx workflow file does not exist.
+        NotAnAlteryxError: If the specified file is not a valid Alteryx workflow.
+        AttributeError: If the log_to parameter is not in the expected format.
+
+    """
+
     def __init__(
         self,
         path_to_alteryx: str,
@@ -54,10 +79,17 @@ class AlteryxEngine(AlteryxEngineScaffold):
         self.log_to = log_to
         self.verbose = verbose
         self.mode = mode
+        self.alteryx_name = f"""{os.path.basename(self.path_to_alteryx).replace(".yxmd", "")}_{self.mode}"""
         if self.verbose is True:
             print("Alteryx workflow initialized successfully. Ready to start")
 
     def run(self):
+        """
+        Start and run the Alteryx workflow.
+
+        Starts the Alteryx process, monitors its output, and logs messages.
+
+        """
         command = rf'"C:\Program Files\Alteryx\bin\AlteryxEngineCmd.exe" "{self.path_to_alteryx}"'
 
         if self.verbose is True:
@@ -65,7 +97,13 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         self.process = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
         self.parent_pid = self.process.pid
-        self.child_pid=conditional_polling(executable=list_child_processes,condition=check_pid,max_duration=120,interval=3,parent_pid=self.parent_pid)
+        self.child_pid = conditional_polling(
+            executable=list_child_processes,
+            condition=check_pid,
+            max_duration=120,
+            interval=3,
+            parent_pid=self.parent_pid,
+        )
         while True:
             line = self.process.stdout.readline()
             line = (
@@ -92,15 +130,30 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 print(line)
 
     def stop(self) -> None:
-        killed_parent_pid=kill_pid(pid=self.parent_pid)
-        if killed_parent_pid!=self.parent_pid:
-            self.log_to_sql(log_message=f'Parent PID {self.parent_pid} could not be killed',logging_level='ERROR')
+        """
+        Stop the Alteryx workflow and kill associated processes.
+
+        Terminates the Alteryx process and its child processes.
+
+        Raises:
+            AlteryxKillError: If any of the processes could not be killed.
+
+        """
+        killed_parent_pid = kill_pid(pid=self.parent_pid)
+        if killed_parent_pid != self.parent_pid:
+            self.log_to_sql(
+                log_message=f"Parent PID {self.parent_pid} could not be killed",
+                logging_level="ERROR",
+            )
             raise AlteryxKillError(f"Parent PID {self.parent_pid} could not be killed")
-        killed_child_pid=kill_pid(pid=self.child_pid)
-        if killed_child_pid!=self.child_pid:
-            self.log_to_sql(log_message=f'Child PID {self.child_pid} could not be killed',logging_level='ERROR')
+        killed_child_pid = kill_pid(pid=self.child_pid)
+        if killed_child_pid != self.child_pid:
+            self.log_to_sql(
+                log_message=f"Child PID {self.child_pid} could not be killed",
+                logging_level="ERROR",
+            )
             raise AlteryxKillError(f"Child PID {self.child_pid} could not be killed")
-        self.log_to_sql(log_message='ALL PIDS HAVE BEEN KILLED',logging_level='INFO')
+        self.log_to_sql(log_message="ALL PIDS HAVE BEEN KILLED", logging_level="INFO")
 
     def log_to_sql(
         self, log_message: str, logging_level: Literal["INFO", "WARNING", "ERROR"]
@@ -124,9 +177,6 @@ class AlteryxEngine(AlteryxEngineScaffold):
             UserWarning: If the log table specified in self.log_to['table'] does not exist, it will be created before logging.
 
         """
-        alteryx_name = os.path.basename(self.path_to_alteryx)
-        alteryx_name = alteryx_name.replace(".yxmd", "")
-        alteryx_name = f"{alteryx_name}_{self.mode}"
 
         # Check if the logging level is valid
         valid_logging_levels = {"INFO", "WARNING", "ERROR"}
@@ -169,7 +219,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 conn.execute(create_table_query)
 
             # Insert the log message
-            insert_query = f"INSERT INTO {self.log_to['table']} (filename, Created, Message, LoggingLevel) VALUES ('{alteryx_name}', getdate(), '{log_message}', '{logging_level}')"
+            insert_query = f"INSERT INTO {self.log_to['table']} (filename, Created, Message, LoggingLevel) VALUES ('{self.alteryx_name}', getdate(), '{log_message}', '{logging_level}')"
             conn.execute(insert_query)
 
     def check_for_error_and_log_message(self, log_message: str) -> None:

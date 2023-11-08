@@ -8,7 +8,6 @@ class AlteryxEngineError(Exception):
 
     """
 
-    # TODO this is a catch all that should be split into multiple specific errors
     pass
 
 
@@ -47,6 +46,7 @@ class AlteryxLoggerError(Exception):
 
     pass
 
+
 class AlteryxKillError(Exception):
     """
     Exception raised for errors related to the Alteryx process PID.
@@ -55,4 +55,5 @@ class AlteryxKillError(Exception):
     of workflows or related operations.
 
     """
+
     pass

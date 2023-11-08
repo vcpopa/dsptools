@@ -6,11 +6,7 @@ admins:
   - admin1
   - admin2
 mode: TESTING
-flow_execution:
-  error_handling_settings:
-    on_error: "warn"
-  timeout_settings:
-    on_timeout: raise
-    timeout_duration: 60
+on_error: 'raise'
+verbose: True
 
 

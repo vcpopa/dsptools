@@ -108,8 +108,21 @@ def run_alteryx_from_config_file(config_path: str, **kwargs):
             mode=config_model.mode,
             verbose=True,
         )
-        alteryx_engine.run()
-
+        runner = alteryx_engine.run()
+        if runner == 0:
+            subject = f"{alteryx_engine.alteryx_name} - COMPLETED"
+            message = ""
+        else:
+            subject = f"{alteryx_engine.alteryx_name} ERROR - invalid return code"
+            message = f"{alteryx_engine.alteryx_name} has finished but the process was returned with code {runner}"
+        if "email_inbox" in kwargs and "email_pwd" in kwargs:
+            send_email(
+                emails=config_model.admins,
+                subject=subject,
+                message=message,
+                email_inbox=kwargs["email_inbox"],
+                email_pwd=kwargs["email_pwd"],
+            )
     except AlteryxNotFound as e:
         # Handle AlteryxNotFound exception
         subject = f"{alteryx_engine.alteryx_name} ERROR - FILE NOT FOUND"
@@ -156,7 +169,9 @@ def run_alteryx_from_config_file(config_path: str, **kwargs):
                 if "raise" in config_model.on_error:
                     # Stop Alteryx and re-raise the exception
                     stop_wrapper(
-                        alteryx_engine=alteryx_engine, config_model=config_model, *kwargs
+                        alteryx_engine=alteryx_engine,
+                        config_model=config_model,
+                        *kwargs,
                     )
                     raise e from e
 

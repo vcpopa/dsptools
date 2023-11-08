@@ -129,6 +129,8 @@ class AlteryxEngine(AlteryxEngineScaffold):
             if self.verbose is True:
                 print(line)
 
+            return self.process.returncode
+
     def stop(self) -> None:
         """
         Stop the Alteryx workflow and kill associated processes.

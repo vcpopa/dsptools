@@ -43,12 +43,14 @@ class AlteryxConfigModel(BaseModel):
         path_to_alteryx (str): The path to the Alteryx workflow file (.yxmd).
         mode (Literal["PRODUCTION", "TESTING", "RELEASE"]): The execution mode of the Alteryx workflow.
         admins (list[str]): A list of administrators for the Alteryx workflow.
-        flow_execution (FlowExecution): Optional flow execution settings.
         log_to (LogTo): Logging settings.
+        on_error (Literal["ignore", "warn", "raise"]): The behavior on error.
+        verbose (bool): Whether to enable verbose mode.
 
     Raises:
         ValueError: If the 'path_to_alteryx' does not end with '.yxmd'.
-        ValueError: Ifd 'mode' not one of 'PRODUCTION','TESTTING','RELEASE'.
+        ValueError: If 'mode' is not one of 'PRODUCTION', 'TESTING', 'RELEASE'.
+        ValueError: If 'on_error' is not one of 'ignore', 'warn', 'raise'.
     """
 
     path_to_alteryx: str
@@ -56,26 +58,26 @@ class AlteryxConfigModel(BaseModel):
     admins: list[str]
     log_to: LogTo
     on_error: Literal["ignore", "warn", "raise"]
-    verbose: True
+    verbose: bool = True  # Fix the default value
 
     @validator("path_to_alteryx")
     def validate_path_to_alteryx(cls, path):
         if not path.endswith(".yxmd"):
-            raise NotAnAlteryxError("path_to_alteryx must end with '.yxmd'")
-        if os.path.exists(path) is False:
-            raise AlteryxNotFound("Could not find alteryx path")
+            raise ValueError("path_to_alteryx must end with '.yxmd'")
+        if not os.path.exists(path):
+            raise AlteryxNotFound("Could not find Alteryx path")
         return path
 
     @validator("mode")
     def validate_mode(cls, mode):
-        if mode not in ["PRODUCTION", "TESTTING", "RELEASE"]:
-            raise ValueError("'mode' must be one of 'PRODUCTION','TESTTING','RELEASE'")
+        if mode not in ["PRODUCTION", "TESTING", "RELEASE"]:
+            raise ValueError("'mode' must be one of 'PRODUCTION', 'TESTING', 'RELEASE'")
         return mode
 
     @validator("on_error")
     def validate_on_error(cls, on_error):
         if on_error not in ["ignore", "warn", "raise"]:
-            raise ValueError("'on_error' must be one of 'ignore','warn','raise'")
+            raise ValueError("'on_error' must be one of 'ignore', 'warn', 'raise'")
         return on_error
 
 

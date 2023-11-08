@@ -101,7 +101,7 @@ def run_alteryx_from_config_file(config_path: str, **kwargs):
 
     config_model = AlteryxConfigModel(
         path_to_alteryx=config["path_to_alteryx"],
-        log_to=config["log_to"].dict(),
+        log_to=config["log_to"],
         mode=config["mode"],
         on_error=config["on_error"],
         admins=config["admins"],

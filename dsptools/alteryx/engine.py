@@ -5,11 +5,14 @@ from typing import Dict, Literal
 import os
 import subprocess
 from sqlalchemy import create_engine
+from dsptools.utils.execution import conditional_polling
+from dsptools.alteryx.pid_utils import list_child_processes,check_pid,kill_pid
 from dsptools.errors.alteryx import (
     AlteryxNotFound,
     NotAnAlteryxError,
     AlteryxEngineError,
     AlteryxLoggerError,
+    AlteryxKillError
 )
 
 
@@ -30,33 +33,6 @@ class AlteryxEngineScaffold(ABC):
 
 
 class AlteryxEngine(AlteryxEngineScaffold):
-    """
-    Represents an Alteryx Engine for executing Alteryx workflows.
-
-    This class allows you to interact with Alteryx workflows and control their execution.
-
-    Args:
-        path_to_alteryx (str): The path to the Alteryx workflow file (.yxmd).
-        log_to (Dict[str, str]): A dictionary containing information on where to log the execution results. It should include the keys 'table' and 'connection_string'.
-        admins (List[str], optional): A list of admin usernames. Required if 'on_error' is set to 'warn'. Defaults to None.
-        on_error (Literal['ignore', 'warn', 'raise'], optional): The action to take on workflow errors. Must be one of 'ignore', 'warn', or 'raise'. Defaults to 'raise'.
-        verbose (bool, optional): Whether to enable verbose output. Defaults to False.
-
-    Raises:
-        AlteryxNotFound: If the specified Alteryx workflow file does not exist.
-        NotAnAlteryxError: If the specified file is not a valid Alteryx workflow.
-        AttributeError: If the 'on_error' value, 'admins', or 'log_to' dictionary are invalid.
-
-    Example:
-        engine = AlteryxEngine(
-            path_to_alteryx="workflow.yxmd",
-            log_to={"table": "log_table", "connection_string": "your_connection_string"},
-            admins=["admin1", "admin2"],
-            on_error="warn",
-            verbose=True
-        )
-    """
-
     def __init__(
         self,
         path_to_alteryx: str,
@@ -64,39 +40,6 @@ class AlteryxEngine(AlteryxEngineScaffold):
         mode: Literal["PRODUCTION", "TEST", "RELEASE"],
         verbose: bool = False,
     ) -> None:
-        """
-        Initialize a new AlteryxEngine instance.
-
-        Args:
-            path_to_alteryx (str): The path to the Alteryx workflow file (.yxmd). It is recommended to use the absolute path to avoid execution errors.
-            log_to (Dict[str, str]): A dictionary containing information on where to log the execution results.
-                It should include the keys 'table' and 'connection_string'.
-            mode (Literal['PRODUCTION', 'TEST', 'RELEASE']): The execution mode for Alteryx, must be one of 'PRODUCTION', 'TEST', or 'RELEASE'.
-            verbose (bool, optional): Whether to enable verbose output. Defaults to False.
-
-        Returns:
-            None
-
-        Raises:
-            AlteryxNotFound: If the specified Alteryx workflow file does not exist.
-            NotAnAlteryxError: If the specified file is not a valid Alteryx workflow.
-            AttributeError: If the 'log_to' dictionary is missing keys or if 'mode' is not one of the allowed modes.
-
-        Note:
-            The 'mode' parameter specifies the execution mode of the Alteryx workflow. You should choose one of the following modes:
-            - 'PRODUCTION': Use this mode for production execution.
-            - 'TEST': Use this mode for testing purposes.
-            - 'RELEASE': Use this mode for a final release.
-
-        Example:
-            engine = AlteryxEngine(
-                path_to_alteryx='/path/to/your/workflow.yxmd',
-                log_to={'table': 'output_table', 'connection_string': 'your_database_connection'},
-                mode='PRODUCTION',
-                verbose=True
-            )
-        """
-        # Constructor implementation here
         if not os.path.exists(path_to_alteryx):
             raise AlteryxNotFound("The specified file does not exist")
         if not path_to_alteryx.endswith(".yxmd"):
@@ -112,23 +55,17 @@ class AlteryxEngine(AlteryxEngineScaffold):
         self.verbose = verbose
         self.mode = mode
         if self.verbose is True:
-            print("Alteryx flow initialized successfully. Ready to start")
+            print("Alteryx workflow initialized successfully. Ready to start")
 
     def run(self):
-        """
-        Run the Alteryx workflow specified by path_to_alteryx.
-
-        This method initiates the execution of the Alteryx workflow specified by 'path_to_alteryx' by calling
-        the Alteryx Engine command-line tool. It captures the workflow's execution logs, checks for errors, and logs
-        the messages based on the specified logging settings.
-
-        """
         command = rf'"C:\Program Files\Alteryx\bin\AlteryxEngineCmd.exe" "{self.path_to_alteryx}"'
 
         if self.verbose is True:
             print("Alteryx is starting...")
 
         self.process = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
+        self.parent_pid = self.process.pid
+        self.child_pid=conditional_polling(executable=list_child_processes,condition=check_pid,max_duration=120,interval=3,parent_pid=self.parent_pid)
         while True:
             line = self.process.stdout.readline()
             line = (
@@ -155,49 +92,15 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 print(line)
 
     def stop(self) -> None:
-        """
-        Attempt to gracefully stop the Alteryx Engine subprocess.
-
-        This method first tries to terminate the subprocess and waits for it to exit gracefully.
-        If the subprocess has already exited or doesn't respond to the termination signal,
-        it attempts a forceful termination using the kill signal.
-
-        If the subprocess is still running after forceful termination, it indicates that
-        the subprocess might not be responding or exiting properly.
-
-        Raises:
-            ProcessLookupError: If the subprocess has already exited when attempting to terminate.
-            AlteryxEngineError: If the subprocess is still running after forceful termination.
-        """
-        if self.process.poll() is not None:
-            if self.verbose:
-                print("Process has already exited.")
-        else:
-            self.process.terminate()
-            self.process.wait()
-
-            if self.verbose:
-                print(f"PID {self.process.pid}: Graceful exit signal sent")
-
-        # Check if the process is still running
-        if self.process.poll() is None:
-            if self.verbose:
-                print(
-                    f"PID {self.process.pid}: Process did not respond to termination signal. Attempting forceful exit."
-                )
-            self.process.kill()
-
-            # Check if the process is still running after forceful termination
-            if self.process.poll() is None:
-                if self.verbose:
-                    print(
-                        f"PID {self.process.pid}: Process is still running after forceful termination."
-                    )
-                raise AlteryxEngineError(
-                    "Process is still running after forceful termination."
-                )
-
-            print(f"PID {self.process.pid}: Forceful termination successful")
+        killed_parent_pid=kill_pid(pid=self.parent_pid)
+        if killed_parent_pid!=self.parent_pid:
+            self.log_to_sql(log_message=f'Parent PID {self.parent_pid} could not be killed',logging_level='ERROR')
+            raise AlteryxKillError(f"Parent PID {self.parent_pid} could not be killed")
+        killed_child_pid=kill_pid(pid=self.child_pid)
+        if killed_child_pid!=self.child_pid:
+            self.log_to_sql(log_message=f'Child PID {self.child_pid} could not be killed',logging_level='ERROR')
+            raise AlteryxKillError(f"Child PID {self.child_pid} could not be killed")
+        self.log_to_sql(log_message='ALL PIDS HAVE BEEN KILLED',logging_level='INFO')
 
     def log_to_sql(
         self, log_message: str, logging_level: Literal["INFO", "WARNING", "ERROR"]
@@ -285,10 +188,11 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         # Initialize error message and logging level
         error_message = f"Failure: {log_message}"
-        logging_level = "ERROR"
+        logging_level = "INFO"
 
         # Check if the log message contains any error keywords
         if "error" in lower_message:
+            logging_level = "ERROR"
             if "warning" in lower_message:
                 logging_level = "WARNING"
                 if self.verbose:

@@ -46,3 +46,13 @@ class AlteryxLoggerError(Exception):
     """
 
     pass
+
+class AlteryxKillError(Exception):
+    """
+    Exception raised for errors related to the Alteryx process PID.
+
+    This exception is used for errors encountered during the stop sequence
+    of workflows or related operations.
+
+    """
+    pass

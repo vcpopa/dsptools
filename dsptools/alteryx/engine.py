@@ -96,7 +96,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
             print("Alteryx is starting...")
 
         self.process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True,text=True
         )
         self.parent_pid = self.process.pid
         self.child_pid = conditional_polling(

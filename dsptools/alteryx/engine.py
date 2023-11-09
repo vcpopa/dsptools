@@ -113,8 +113,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
             ("stdout", self.process.stdout),
             ("stderr", self.process.stderr),
         ]:
-            for line_bytes in stream:
-                line = line_bytes.decode("utf-8")  # Decode the bytes to a string
+            for line in stream:
                 line = self.clean_line(line)
                 self.check_for_error_and_log_message(log_message=line)
                 if self.verbose:

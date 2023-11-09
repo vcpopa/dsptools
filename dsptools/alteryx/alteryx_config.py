@@ -176,7 +176,7 @@ def run_alteryx_from_config_file(config_path: str, **kwargs):
                 email_inbox=kwargs["email_inbox"],
                 email_pwd=kwargs["email_pwd"],
             )
-        raise AlteryxNotFound from e
+        raise e from e
 
     except (AlteryxEngineError, AlteryxLoggerError) as e:
         # Handle other exceptions

@@ -34,7 +34,9 @@ def download_sftp(
         download_sftp(username="myuser", password="mypassword", host="sftp.example.com",
                       sftp_file_path="/remote/file.txt", destination_folder_path="/local/folder")
     """
-    command = f"pscp -pw {password} {username}@{host}:{sftp_file_path} {destination_file_path}"
+    command = (
+        f"pscp -pw {password} {username}@{host}:{sftp_file_path} {destination_file_path}"
+    )
     print(f"Downloading {sftp_file_path} to {destination_file_path}")
     try:
         with subprocess.Popen(

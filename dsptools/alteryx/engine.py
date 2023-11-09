@@ -4,7 +4,7 @@ import warnings
 from typing import Dict, Literal
 import os
 import subprocess
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from dsptools.utils.execution import conditional_polling
 from dsptools.alteryx.pid_utils import list_child_processes, check_pid, kill_pid
 from dsptools.errors.alteryx import (
@@ -68,9 +68,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
         if not os.path.exists(path_to_alteryx):
             raise AlteryxNotFound("The specified file does not exist")
         if not path_to_alteryx.endswith(".yxmd"):
-            raise NotAnAlteryxError(
-                "The specified file is not a valid Alteryx workflow"
-            )
+            raise NotAnAlteryxError("The specified file is not a valid Alteryx workflow")
         if "table" not in log_to.keys() or "connection_string" not in log_to.keys():
             raise AttributeError(
                 f"The log_to parameter must be a dict with the following keys: 'table','connection_string'. You provided {', '.join(log_to.keys())}"
@@ -96,7 +94,11 @@ class AlteryxEngine(AlteryxEngineScaffold):
             print("Alteryx is starting...")
 
         self.process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True,text=True
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True,
+            text=True,
         )
         self.parent_pid = self.process.pid
         self.child_pid = conditional_polling(
@@ -128,9 +130,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
         """
         Clean a line by removing unwanted characters.
         """
-        return (
-            line.replace("'", "").replace(",", "").replace("\r", "").replace("\n", "")
-        )
+        return line.replace("'", "").replace(",", "").replace("\r", "").replace("\n", "")
 
     def stop(self) -> None:
         """
@@ -193,7 +193,9 @@ class AlteryxEngine(AlteryxEngineScaffold):
         con = create_engine(self.log_to["connection_string"])
         with con.connect() as conn:
             # Check if the schema exists
-            schema_exists_query = f"SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '{schema}'"
+            schema_exists_query = text(
+                f"SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '{schema}'"
+            )
             schema_exists = conn.execute(schema_exists_query).scalar() is not None
 
             if not schema_exists:
@@ -202,7 +204,9 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 )
 
             # Check if the table exists
-            table_exists_query = f"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}'"
+            table_exists_query = text(
+                f"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}'"
+            )
             table_exists = conn.execute(table_exists_query).scalar() is not None
 
             if not table_exists:
@@ -211,18 +215,22 @@ class AlteryxEngine(AlteryxEngineScaffold):
                     UserWarning,
                 )
                 # Log table doesn't exist, create it
-                create_table_query = f"""
+                create_table_query = text(
+                    f"""
                     CREATE TABLE {self.log_to['table']} (
                         filename VARCHAR(255),
                         Created DATETIME,
                         Message TEXT,
-                        LoggingLevel VARCHAR(10)
+                        LoggingLevel VARCHAR(10),
+                        ParentPID INT,
+                        ChildPID INT
                     )
                 """
+                )
                 conn.execute(create_table_query)
 
             # Insert the log message
-            insert_query = f"INSERT INTO {self.log_to['table']} (filename, Created, Message, LoggingLevel) VALUES ('{self.alteryx_name}', getdate(), '{log_message}', '{logging_level}')"
+            insert_query = f"INSERT INTO {self.log_to['table']} (filename, Created, Message, LoggingLevel,ParentPID,ChildPID) VALUES ('{self.alteryx_name}', getdate(), '{log_message}', '{logging_level}','{self.parent_pid}','{self.child_pid}')"
             conn.execute(insert_query)
 
     def check_for_error_and_log_message(self, log_message: str) -> None:

@@ -123,8 +123,8 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         if self.verbose:
             print("Alteryx workflow completed")
-
-        return self.process.returncode
+        returncode = self.process.wait()
+        return returncode
 
     def clean_line(self, line: str) -> str:
         """

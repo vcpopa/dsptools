@@ -92,7 +92,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         if self.verbose:
             print("Alteryx is starting...")
-
+        self.create_log_table_if_not_exist()
         self.process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -188,6 +188,15 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 f"Invalid logging level. Supported levels: {', '.join(valid_logging_levels)}"
             )
 
+        con = create_engine(self.log_to["connection_string"])
+        with con.connect() as conn:
+            insert_query = text(
+                f"INSERT INTO Dataflow.{self.log_to['table']} (filename, Created, Message, LoggingLevel,ParentPID,ChildPID) VALUES ('{self.alteryx_name}', getdate(), '{log_message}', '{logging_level}','{self.parent_pid}','{self.child_pid}')"
+            )
+            print(f"Executing {insert_query}")
+            conn.execute(insert_query)
+
+    def create_log_table_if_not_exist(self) -> None:
         # Extract schema and table from self.log_to['table']
         schema, table = self.log_to["table"].split(".", 1)
         con = create_engine(self.log_to["connection_string"])
@@ -208,8 +217,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 f"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}'"
             )
             table_exists = conn.execute(table_exists_query).scalar() is not None
-
-            if not table_exists:
+            if table_exists is False:
                 warnings.warn(
                     f"Log table '{self.log_to['table']}' was created!",
                     UserWarning,
@@ -217,7 +225,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 # Log table doesn't exist, create it
                 create_table_query = text(
                     f"""
-                    CREATE TABLE {self.log_to['table']} (
+                    CREATE TABLE Dataflow.{self.log_to['table']} (
                         filename VARCHAR(255),
                         Created DATETIME,
                         Message VARCHAR(MAX),
@@ -229,20 +237,19 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 )
                 conn.execute(create_table_query)
 
-            # Insert the log message
-            insert_query = text(f"INSERT INTO {self.log_to['table']} (filename, Created, Message, LoggingLevel,ParentPID,ChildPID) VALUES ('{self.alteryx_name}', getdate(), '{log_message}', '{logging_level}','{self.parent_pid}','{self.child_pid}')")
-            print(f"Executing {insert_query}")
-            conn.execute(insert_query)
-
     def check_for_error_and_log_message(self, log_message: str) -> None:
         """
         Check a log message for specific error conditions and log it to a SQL database.
 
         This method examines a log message for specific error conditions and logs them with the appropriate severity
-        in a SQL database. If the message contains both 'error' and 'warning' keywords, it's logged as a warning.
+        in a SQL database. If the message contains any of the error keywords, it's logged as an error.
+        If the message contains any of the warning keywords, it's logged as a warning.
 
         Args:
             log_message (str): The log message to be checked and logged.
+
+        Raises:
+            AlteryxEngineError: If the log message contains any of the specified error keywords.
 
         """
         # Convert the log message to lowercase for case-insensitive checks
@@ -253,22 +260,25 @@ class AlteryxEngine(AlteryxEngineScaffold):
         logging_level = "INFO"
 
         # Check if the log message contains any error keywords
-        if "error" in lower_message:
+        error_keywords = [
+            "blocking",
+            "unable to translate alias",
+            "error opening the file",
+            "can't find the file",
+        ]
+        if any(keyword in lower_message for keyword in error_keywords):
             logging_level = "ERROR"
-            if "warning" in lower_message:
-                logging_level = "WARNING"
-                if self.verbose:
-                    warnings.warn(log_message)
-                    self.log_to_sql(
-                        log_message=error_message, logging_level=logging_level
-                    )
-            else:
-                if self.verbose:
-                    warnings.warn(log_message)
-                self.log_to_sql(log_message=error_message, logging_level=logging_level)
-                raise AlteryxEngineError(
-                    f"Exit raised by the following error: {error_message}"
-                )
-        else:
-            # Log the message to a SQL database even if there's no error
-            self.log_to_sql(log_message=log_message, logging_level=logging_level)
+            if self.verbose:
+                warnings.warn(log_message)
+            self.log_to_sql(log_message=error_message, logging_level=logging_level)
+            raise AlteryxEngineError(
+                f"Exit raised by the following error: {error_message}"
+            )
+        # Check if the log message contains any warning keywords
+        warning_keywords = ["warning"]
+        if any(keyword in lower_message for keyword in warning_keywords):
+            logging_level = "WARNING"
+            if self.verbose:
+                warnings.warn(log_message)
+        # Log the message to a SQL database
+        self.log_to_sql(log_message=log_message, logging_level=logging_level)

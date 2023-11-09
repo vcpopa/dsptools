@@ -3,6 +3,6 @@ paramiko==3.3.1
 pymsteams==0.2.2
 PyYAML==6.0.1
 setuptools==68.2.2
-SQLAlchemy==1.4.2
+SQLAlchemy==1.4.16
 pydantic==1.10.13
 

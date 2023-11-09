@@ -81,7 +81,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
         if self.verbose is True:
             print("Alteryx workflow initialized successfully. Ready to start")
 
-    def run(self):
+    def run(self) -> int:
         """
         Start and run the Alteryx workflow.
 
@@ -126,7 +126,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         return self.process.returncode
 
-    def clean_line(self, line):
+    def clean_line(self, line: str) -> str:
         """
         Clean a line by removing unwanted characters.
         """
@@ -220,7 +220,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
                     CREATE TABLE {self.log_to['table']} (
                         filename VARCHAR(255),
                         Created DATETIME,
-                        Message TEXT,
+                        Message VARCHAR(MAX),
                         LoggingLevel VARCHAR(10),
                         ParentPID INT,
                         ChildPID INT
@@ -231,6 +231,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
             # Insert the log message
             insert_query = text(f"INSERT INTO {self.log_to['table']} (filename, Created, Message, LoggingLevel,ParentPID,ChildPID) VALUES ('{self.alteryx_name}', getdate(), '{log_message}', '{logging_level}','{self.parent_pid}','{self.child_pid}')")
+            print(f"Executing {insert_query}")
             conn.execute(insert_query)
 
     def check_for_error_and_log_message(self, log_message: str) -> None:

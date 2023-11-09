@@ -30,15 +30,11 @@ class LogTo(BaseModel):
     connection_string: str
 
     @validator("connection_string")
-    def validate_connstring(cls, connection_string: str, values) -> dict:
+    def validate_connstring(cls, connection_string: str) -> dict:
         if "mssql+pyodbc:///?odbc_connect=" not in connection_string:
             raise ValueError("Not a valid connection string")
 
-        log_to_dict = {
-            "table": values.get("table"),
-            "connection_string": connection_string,
-        }
-        return log_to_dict
+        return connection_string
 
 
 class AlteryxConfigModel(BaseModel):

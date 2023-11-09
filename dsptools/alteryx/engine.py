@@ -190,6 +190,8 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         # Extract schema and table from self.log_to['table']
         schema, table = self.log_to["table"].split(".", 1)
+        print(f"Schema: {schema}. Table: {table}")
+        print(f"Connstrig: {self.log_to['connection_string']}")
         con = create_engine(self.log_to["connection_string"]).raw_connection()
         with con.connect() as conn:
             # Check if the schema exists

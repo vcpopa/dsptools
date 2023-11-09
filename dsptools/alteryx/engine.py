@@ -230,7 +230,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 conn.execute(create_table_query)
 
             # Insert the log message
-            insert_query = f"INSERT INTO {self.log_to['table']} (filename, Created, Message, LoggingLevel,ParentPID,ChildPID) VALUES ('{self.alteryx_name}', getdate(), '{log_message}', '{logging_level}','{self.parent_pid}','{self.child_pid}')"
+            insert_query = text(f"INSERT INTO {self.log_to['table']} (filename, Created, Message, LoggingLevel,ParentPID,ChildPID) VALUES ('{self.alteryx_name}', getdate(), '{log_message}', '{logging_level}','{self.parent_pid}','{self.child_pid}')")
             conn.execute(insert_query)
 
     def check_for_error_and_log_message(self, log_message: str) -> None:

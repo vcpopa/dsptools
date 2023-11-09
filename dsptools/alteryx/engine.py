@@ -92,10 +92,12 @@ class AlteryxEngine(AlteryxEngineScaffold):
         """
         command = rf'"C:\Program Files\Alteryx\bin\AlteryxEngineCmd.exe" "{self.path_to_alteryx}"'
 
-        if self.verbose is True:
+        if self.verbose:
             print("Alteryx is starting...")
 
-        self.process = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
+        self.process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
+        )
         self.parent_pid = self.process.pid
         self.child_pid = conditional_polling(
             executable=list_child_processes,
@@ -106,32 +108,30 @@ class AlteryxEngine(AlteryxEngineScaffold):
         )
         print(f"Parent PID: {self.parent_pid}")
         print(f"Child PID: {self.child_pid}")
-        while True:
-            line = self.process.stdout.readline()
-            line = (
-                line.replace("'", "")
-                .replace(",", "")
-                .replace("\r", "")
-                .replace("\n", "")
-            )
-            self.check_for_error_and_log_message(log_message=line)
-            line = self.process.stderr.readline()
-            line = (
-                line.replace("'", "")
-                .replace(",", "")
-                .replace("\r", "")
-                .replace("\n", "")
-            )
-            if not line:
-                if self.verbose is True:
-                    print("Alteryx workflow completed")
-                break
 
-            self.check_for_error_and_log_message(log_message=line)
-            if self.verbose is True:
-                print(line)
+        for stream_name, stream in [
+            ("stdout", self.process.stdout),
+            ("stderr", self.process.stderr),
+        ]:
+            for line_bytes in stream:
+                line = line_bytes.decode("utf-8")  # Decode the bytes to a string
+                line = self.clean_line(line)
+                self.check_for_error_and_log_message(log_message=line)
+                if self.verbose:
+                    print(f"{stream_name}: {line}")
 
-            return self.process.returncode
+        if self.verbose:
+            print("Alteryx workflow completed")
+
+        return self.process.returncode
+
+    def clean_line(self, line):
+        """
+        Clean a line by removing unwanted characters.
+        """
+        return (
+            line.replace("'", "").replace(",", "").replace("\r", "").replace("\n", "")
+        )
 
     def stop(self) -> None:
         """

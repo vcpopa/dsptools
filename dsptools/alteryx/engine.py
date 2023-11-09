@@ -104,6 +104,8 @@ class AlteryxEngine(AlteryxEngineScaffold):
             interval=3,
             parent_pid=self.parent_pid,
         )
+        print(f"Parent PID: {self.parent_pid}")
+        print(f"Child PID: {self.child_pid}")
         while True:
             line = self.process.stdout.readline()
             line = (

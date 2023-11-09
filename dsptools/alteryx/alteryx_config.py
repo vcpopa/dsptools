@@ -105,15 +105,20 @@ def run_alteryx_from_config_file(config_path: str, **kwargs):
         mode=config["mode"],
         on_error=config["on_error"],
         admins=config["admins"],
+        verbose=config["verbose"],
     )
 
     try:
         # Start the Alteryx Engine
+        log_to_dict = {
+            "table": config_model.log_to.table,
+            "connection_string": config_model.log_to.connection_string,
+        }
         alteryx_engine = AlteryxEngine(
             path_to_alteryx=config_model.path_to_alteryx,
-            log_to=config_model.log_to,
+            log_to=log_to_dict,
             mode=config_model.mode,
-            verbose=True,
+            verbose=config_model.verbose,
         )
         runner = alteryx_engine.run()
         if runner == 0:

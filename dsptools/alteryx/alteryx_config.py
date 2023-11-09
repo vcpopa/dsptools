@@ -7,6 +7,7 @@ from pydantic import BaseModel, validator
 import yaml
 from dsptools.alteryx.engine import AlteryxEngine
 from dsptools.utils.notifications import send_email
+from dsptools.errors.execution import PollingTimeoutError
 from dsptools.errors.alteryx import (
     AlteryxEngineError,
     AlteryxKillError,
@@ -153,6 +154,20 @@ def run_alteryx_from_config_file(config_path: str, **kwargs):
         # Handle NotAnAlteryxError exception
         subject = f"{alteryx_engine.alteryx_name} ERROR - NOT A VALID FILE"
         message = f"{alteryx_engine.alteryx_name} encountered an error: {e}"
+        if "email_inbox" in kwargs and "email_pwd" in kwargs:
+            send_email(
+                emails=config_model.admins,
+                subject=subject,
+                message=message,
+                email_inbox=kwargs["email_inbox"],
+                email_pwd=kwargs["email_pwd"],
+            )
+        raise AlteryxNotFound from e
+
+    except PollingTimeoutError as e:
+        # Handle PolllingTimeout
+        subject = f"{alteryx_engine.alteryx_name} ERROR - ALTERYX FAILED TO START"
+        message = f"{alteryx_engine.alteryx_name} COULD NOT SPAWN A CHILD PROCESS: {e}"
         if "email_inbox" in kwargs and "email_pwd" in kwargs:
             send_email(
                 emails=config_model.admins,

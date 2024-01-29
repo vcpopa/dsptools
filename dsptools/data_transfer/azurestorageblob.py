@@ -36,7 +36,9 @@ def connect_to_azure_blob(
         connection_string = f"DefaultEndpointsProtocol=https;AccountName={storage_account_name};AccountKey={storage_account_key}"
 
         # Create a BlobServiceClient
-        blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+        blob_service_client = BlobServiceClient.from_connection_string(
+            connection_string
+        )
 
         # Get a reference to the container
         container_client = blob_service_client.get_container_client(container_name)

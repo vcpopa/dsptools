@@ -17,7 +17,9 @@ def test_parallelize_execution_thread():
 
 def test_parallelize_execution_process():
     data = [1, 2, 3, 4, 5]
-    results = parallelize_execution(square, data, max_workers=2, executor_type="process")
+    results = parallelize_execution(
+        square, data, max_workers=2, executor_type="process"
+    )
     assert results == [1, 4, 9, 16, 25]
 
 

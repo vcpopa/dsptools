@@ -317,7 +317,9 @@ def timeout(
                         )
 
                 # Allow the decorated function to continue running even after timeout
-                return None  # You may choose to return a default value or None on timeout
+                return (
+                    None  # You may choose to return a default value or None on timeout
+                )
             else:
                 return item(
                     *args, **kwargs

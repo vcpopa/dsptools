@@ -1,12 +1,13 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 import warnings
-from typing import Dict, Literal
+import asyncio
+import psutil
+from typing import Dict, Literal, Union
+import time
 import os
 import subprocess
 from sqlalchemy import create_engine, text
-from dsptools.utils.execution import conditional_polling
-from dsptools.alteryx.pid_utils import list_child_processes, check_pid, kill_pid
 from dsptools.errors.alteryx import (
     AlteryxNotFound,
     NotAnAlteryxError,
@@ -18,11 +19,11 @@ from dsptools.errors.alteryx import (
 
 class AlteryxEngineScaffold(ABC):
     @abstractmethod
-    def run(self) -> True:
+    async def run(self) -> True:
         pass
 
     @abstractmethod
-    def stop(self) -> bool:
+    async def stop(self) -> bool:
         pass
 
     @abstractmethod
@@ -68,7 +69,9 @@ class AlteryxEngine(AlteryxEngineScaffold):
         if not os.path.exists(path_to_alteryx):
             raise AlteryxNotFound("The specified file does not exist")
         if not path_to_alteryx.endswith(".yxmd"):
-            raise NotAnAlteryxError("The specified file is not a valid Alteryx workflow")
+            raise NotAnAlteryxError(
+                "The specified file is not a valid Alteryx workflow"
+            )
         if "table" not in log_to.keys() or "connection_string" not in log_to.keys():
             raise AttributeError(
                 f"The log_to parameter must be a dict with the following keys: 'table','connection_string'. You provided {', '.join(log_to.keys())}"
@@ -81,9 +84,9 @@ class AlteryxEngine(AlteryxEngineScaffold):
         if self.verbose is True:
             print("Alteryx workflow initialized successfully. Ready to start")
 
-    def run(self) -> int:
+    async def run(self) -> int:
         """
-        Start and run the Alteryx workflow.
+        Start and run the Alteryx workflow asynchronously.
 
         Starts the Alteryx process, monitors its output, and logs messages.
 
@@ -92,49 +95,90 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         if self.verbose:
             print("Alteryx is starting...")
+
         self.create_log_table_if_not_exist()
-        self.process = subprocess.Popen(
+
+        # Start the Alteryx process asynchronously
+        process = await asyncio.create_subprocess_exec(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             shell=True,
             text=True,
         )
-        self.parent_pid = self.process.pid
-        self.child_pid = conditional_polling(
-            executable=list_child_processes,
-            condition=check_pid,
-            max_duration=120,
-            interval=3,
-            parent_pid=self.parent_pid,
-        )
-        print(f"Parent PID: {self.parent_pid}")
-        print(f"Child PID: {self.child_pid}")
 
-        for stream_name, stream in [
-            ("stdout", self.process.stdout),
-            ("stderr", self.process.stderr),
-        ]:
-            for line in stream:
+        self.parent_pid = process.pid
+        print(f"Parent PID: {self.parent_pid}")
+
+        # Start the task to retrieve the child PID with a timeout
+        try:
+            self.child_pid = await asyncio.wait_for(
+                self.get_child_pid_async(self.parent_pid), timeout=120
+            )
+        except asyncio.TimeoutError:
+            # Terminate the parent process if the child PID was not obtained within the specified time
+            process.terminate()
+            raise AlteryxEngineError(
+                "Child PID not obtained within the specified time."
+            )
+
+        if self.child_pid is None:
+            raise AlteryxEngineError("Child PID not found.")
+
+        # Process stdout and stderr asynchronously
+        async def process_output(stream_name, stream):
+            async for line in stream:
                 line = self.clean_line(line)
                 self.check_for_error_and_log_message(log_message=line)
                 if self.verbose:
                     print(f"{stream_name}: {line}")
 
+        # Wait for the Alteryx process to complete
+        await asyncio.gather(
+            process_output("stdout", process.stdout),
+            process_output("stderr", process.stderr),
+        )
+
+        returncode = await process.wait()
+
         if self.verbose:
             print("Alteryx workflow completed")
-        returncode = self.process.wait()
         return returncode
+
+    async def get_child_pid_async(self, parent_pid: int) -> Union[int, None]:
+        """
+        Get the child PID of a given parent process asynchronously.
+
+        Args:
+            parent_pid (int): The parent process ID to search for child processes.
+
+        Returns:
+            Union[int, None]: The process ID of a child process, or None if no child process is found.
+        """
+        start_time = time.time()
+        while True:
+            child_pid = await self.try_get_child_pid_async(parent_pid)
+            if child_pid is not None:
+                return child_pid
+
+            elapsed_time = time.time() - start_time
+            if elapsed_time >= 120:
+                return None  # Child PID not obtained within the specified time
+
+            # Poll every 3 seconds
+            await asyncio.sleep(3)
 
     def clean_line(self, line: str) -> str:
         """
         Clean a line by removing unwanted characters.
         """
-        return line.replace("'", "").replace(",", "").replace("\r", "").replace("\n", "")
+        return (
+            line.replace("'", "").replace(",", "").replace("\r", "").replace("\n", "")
+        )
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """
-        Stop the Alteryx workflow and kill associated processes.
+        Stop the Alteryx workflow and kill associated processes asynchronously.
 
         Terminates the Alteryx process and its child processes.
 
@@ -142,21 +186,55 @@ class AlteryxEngine(AlteryxEngineScaffold):
             AlteryxKillError: If any of the processes could not be killed.
 
         """
-        killed_parent_pid = kill_pid(pid=self.parent_pid)
-        if killed_parent_pid != self.parent_pid:
+        # Start tasks to kill both parent and child processes asynchronously
+        parent_kill_task = asyncio.create_task(self.kill_pid_async(self.parent_pid))
+        child_kill_task = asyncio.create_task(self.kill_pid_async(self.child_pid))
+
+        # Wait for both tasks to complete
+        await asyncio.gather(parent_kill_task, child_kill_task)
+
+        # Check if any of the processes could not be killed
+        if parent_kill_task.result() is None:
             self.log_to_sql(
                 log_message=f"Parent PID {self.parent_pid} could not be killed",
                 logging_level="ERROR",
             )
             raise AlteryxKillError(f"Parent PID {self.parent_pid} could not be killed")
-        killed_child_pid = kill_pid(pid=self.child_pid)
-        if killed_child_pid != self.child_pid:
+
+        if child_kill_task.result() is None:
             self.log_to_sql(
                 log_message=f"Child PID {self.child_pid} could not be killed",
                 logging_level="ERROR",
             )
             raise AlteryxKillError(f"Child PID {self.child_pid} could not be killed")
+
         self.log_to_sql(log_message="ALL PIDS HAVE BEEN KILLED", logging_level="INFO")
+
+    async def kill_pid_async(self, pid: int) -> Union[int, None]:
+        """
+        Terminate a process with the given process ID asynchronously
+        and check if it was successfully killed.
+
+        Args:
+            pid (int): The process ID to terminate.
+
+        Returns:
+            Union[int, None]: The process ID if it was successfully killed, or None if not.
+        """
+        try:
+            pid_process = psutil.Process(pid)
+            pid_process.terminate()
+
+            # Wait for the process to exit asynchronously
+            await asyncio.to_thread(pid_process.wait, 5)
+
+            # Check if the process exists
+            if not psutil.pid_exists(pid):
+                return pid
+
+            return None
+        except psutil.NoSuchProcess:
+            return None
 
     def log_to_sql(
         self, log_message: str, logging_level: Literal["INFO", "WARNING", "ERROR"]

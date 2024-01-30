@@ -54,7 +54,7 @@ unsafe-load-any-extension=no
 extension-pkg-allow-list=
 
 # Minimum supported python version
-py-version = 3.7.2
+py-version = 3.8.0
 
 # Control the amount of potential inferred values when inferring a single
 # object. This can help the performance when dealing with large functions or
@@ -106,6 +106,8 @@ disable=
     too-few-public-methods,
     broad-exception-raised,
     line-too-long,
+    consider-using-alias,
+    consider-alternative-union-syntax,
     format,
     fixme,
 

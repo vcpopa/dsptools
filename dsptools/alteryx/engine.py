@@ -147,21 +147,29 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
     async def get_child_pid_async(self, parent_pid: int) -> Union[int, None]:
         """
-        Get the child PID of a given parent process asynchronously.
+        Find the child PID of a given parent process within a specified timeout period.
 
         Args:
             parent_pid (int): The parent process ID to search for child processes.
 
         Returns:
-            Union[int, None]: The process ID of a child process, or None if no child process is found.
+            Union[int, None]: The process ID of a child process, or None if no child process is found within the timeout.
         """
         start_time = time.time()
+
         while True:
-            if (child_pid := await self.get_child_pid_async(parent_pid)) is not None:
-                return child_pid
+            try:
+                # Obtain information about the parent process
+                proc = psutil.Process(parent_pid)
+
+                if children := proc.children():
+                    return children[0].pid
+
+            except (psutil.NoSuchProcess, IndexError) as exc:
+                raise AlteryxEngineError("Parent PID does not exist") from exc
 
             if (time.time() - start_time) >= 120:
-                return None  # Child PID not obtained within the specified time
+                raise asyncio.TimeoutError("Child PID not obtained within the specified time")
 
             # Poll every 3 seconds
             await asyncio.sleep(3)

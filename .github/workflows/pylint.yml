@@ -28,4 +28,4 @@ jobs:
         pylint $(git ls-files '*.py')
     - name: Analyzing code with mypy
       run: |
-        mypy .
+        mypy . --install-types

@@ -104,7 +104,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             shell=False,
-            text=True,
+            text=False,
         )
 
         self.parent_pid = process.pid

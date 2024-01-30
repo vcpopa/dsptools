@@ -296,7 +296,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 f"SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '{schema}'"
             )
 
-            if (conn.execute(schema_exists_query).scalar()) is not None:
+            if (conn.execute(schema_exists_query).scalar()) is False:
                 raise AlteryxLoggerError(
                     f"Schema '{schema}' does not exist. Cannot create the log table."
                 )

@@ -18,11 +18,11 @@ from dsptools.errors.alteryx import (
 
 class AlteryxEngineScaffold(ABC):
     @abstractmethod
-    async def run(self, run_as: Union[str, None]) -> int:
+    async def run(self) -> int:
         pass
 
     @abstractmethod
-    async def stop(self) -> None:
+    async def stop(self, reason: Literal["killswitch", "error"]) -> None:
         pass
 
     @abstractmethod
@@ -124,8 +124,10 @@ class AlteryxEngine(AlteryxEngineScaffold):
         # Process stdout and stderr asynchronously
         async def process_output(stream_name, stream):
             async for line in stream:
+                line = line.decode("utf-8")
                 line = self.clean_line(line)
-                self.check_for_error_and_log_message(log_message=line)
+                print(line)
+                await self.check_for_error_and_log_message(log_message=line)
                 if self.verbose:
                     print(f"{stream_name}: {line}")
 
@@ -157,18 +159,18 @@ class AlteryxEngine(AlteryxEngineScaffold):
             try:
                 # Obtain information about the parent process
                 proc = psutil.Process(parent_pid)
-
-                if children := proc.children():
+                children = proc.children()
+                print(f"Children: {children}")
+                if not children != []:
                     return children[0].pid
-
+                if (time.time() - start_time) >= 120:
+                    raise asyncio.TimeoutError(
+                        "Child PID not obtained within the specified time"
+                    )
+                # Poll every 3 seconds
+                await asyncio.sleep(3)
             except (psutil.NoSuchProcess, IndexError) as exc:
                 raise AlteryxEngineError("Parent PID does not exist") from exc
-
-            if (time.time() - start_time) >= 120:
-                raise asyncio.TimeoutError("Child PID not obtained within the specified time")
-
-            # Poll every 3 seconds
-            await asyncio.sleep(3)
 
     def clean_line(self, line: str) -> str:
         """
@@ -178,7 +180,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
             line.replace("'", "").replace(",", "").replace("\r", "").replace("\n", "")
         )
 
-    async def stop(self) -> None:
+    async def stop(self, reason: Literal["killswitch", "error"]) -> None:
         """
         Stop the Alteryx workflow and kill associated processes asynchronously.
 
@@ -217,6 +219,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
             raise AlteryxKillError(f"Child PID {self.child_pid} could not be killed")
 
         self.log_to_sql(log_message="ALL PIDS HAVE BEEN KILLED", logging_level="INFO")
+        self.log_to_sql(log_message=f"STOP REASON: {reason}", logging_level="INFO")
 
     async def kill_pid_async(self, pid: int) -> Union[int, None]:
         """
@@ -322,7 +325,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 )
                 conn.execute(create_table_query)
 
-    def check_for_error_and_log_message(self, log_message: str) -> None:
+    async def check_for_error_and_log_message(self, log_message: str) -> None:
         """
         Check a log message for specific error conditions and log it to a SQL database.
 
@@ -354,6 +357,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
             if self.verbose:
                 warnings.warn(log_message)
             self.log_to_sql(log_message=error_message, logging_level="ERROR")  # type: ignore[arg-type]
+            await self.stop(reason="error")
             raise AlteryxEngineError(
                 f"Exit raised by the following error: {error_message}"
             )

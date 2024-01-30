@@ -22,7 +22,7 @@ class AlteryxEngineScaffold(ABC):
         pass
 
     @abstractmethod
-    async def stop(self,reason: Literal['killswitch','error']) -> None:
+    async def stop(self, reason: Literal["killswitch", "error"]) -> None:
         pass
 
     @abstractmethod
@@ -180,7 +180,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
             line.replace("'", "").replace(",", "").replace("\r", "").replace("\n", "")
         )
 
-    async def stop(self,reason:Literal['killswitch','error']) -> None:
+    async def stop(self, reason: Literal["killswitch", "error"]) -> None:
         """
         Stop the Alteryx workflow and kill associated processes asynchronously.
 
@@ -357,7 +357,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
             if self.verbose:
                 warnings.warn(log_message)
             self.log_to_sql(log_message=error_message, logging_level="ERROR")  # type: ignore[arg-type]
-            await self.stop(reason='error')
+            await self.stop(reason="error")
             raise AlteryxEngineError(
                 f"Exit raised by the following error: {error_message}"
             )

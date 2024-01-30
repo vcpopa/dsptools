@@ -1,12 +1,12 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
-import warnings
-import asyncio
-import psutil
 from typing import Dict, Literal, Union
 import time
 import os
 import subprocess
+from abc import ABC, abstractmethod
+import warnings
+import asyncio
+import psutil
 from sqlalchemy import create_engine, text
 from dsptools.errors.alteryx import (
     AlteryxNotFound,
@@ -84,7 +84,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
         if self.verbose is True:
             print("Alteryx workflow initialized successfully. Ready to start")
 
-    async def run(self) -> int:
+    async def run(self,run_as: Union[str,None] = None) -> int:
         """
         Start and run the Alteryx workflow asynchronously.
 
@@ -92,7 +92,8 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         """
         command = rf'"C:\Program Files\Alteryx\bin\AlteryxEngineCmd.exe" "{self.path_to_alteryx}"'
-
+        if run_as:
+            command = f"runas /user:{run_as} {command}"
         if self.verbose:
             print("Alteryx is starting...")
 
@@ -101,8 +102,8 @@ class AlteryxEngine(AlteryxEngineScaffold):
         # Start the Alteryx process asynchronously
         process = await asyncio.create_subprocess_exec(
             command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             shell=False,
             text=False,
         )

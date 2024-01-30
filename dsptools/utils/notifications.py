@@ -6,7 +6,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
-import pymsteams
+import pymsteams  # type: ignore[import-not-found]
 from dsptools.errors.data import EmailAttachmentError
 from dsptools.errors.execution import TeamsMessageError
 

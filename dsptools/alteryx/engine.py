@@ -19,11 +19,11 @@ from dsptools.errors.alteryx import (
 
 class AlteryxEngineScaffold(ABC):
     @abstractmethod
-    async def run(self) -> True:
+    async def run(self, run_as: Union[str, None]) -> int:
         pass
 
     @abstractmethod
-    async def stop(self) -> bool:
+    async def stop(self) -> None:
         pass
 
     @abstractmethod
@@ -84,7 +84,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
         if self.verbose is True:
             print("Alteryx workflow initialized successfully. Ready to start")
 
-    async def run(self,run_as: Union[str,None] = None) -> int:
+    async def run(self, run_as: Union[str, None] = None) -> int:
         """
         Start and run the Alteryx workflow asynchronously.
 
@@ -116,12 +116,12 @@ class AlteryxEngine(AlteryxEngineScaffold):
             self.child_pid = await asyncio.wait_for(
                 self.get_child_pid_async(self.parent_pid), timeout=120
             )
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as exc:
             # Terminate the parent process if the child PID was not obtained within the specified time
             process.terminate()
             raise AlteryxEngineError(
                 "Child PID not obtained within the specified time."
-            )
+            ) from exc
 
         if self.child_pid is None:
             raise AlteryxEngineError("Child PID not found.")
@@ -158,7 +158,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
         """
         start_time = time.time()
         while True:
-            child_pid = await self.try_get_child_pid_async(parent_pid)
+            child_pid = await self.get_child_pid_async(parent_pid)
             if child_pid is not None:
                 return child_pid
 
@@ -185,11 +185,17 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         Raises:
             AlteryxKillError: If any of the processes could not be killed.
+            AlteryxEngineError: If parent and/or child PIDs not found.
 
         """
         # Start tasks to kill both parent and child processes asynchronously
-        parent_kill_task = asyncio.create_task(self.kill_pid_async(self.parent_pid))
-        child_kill_task = asyncio.create_task(self.kill_pid_async(self.child_pid))
+        if self.parent_pid and self.child_pid:
+            parent_kill_task = asyncio.create_task(self.kill_pid_async(self.parent_pid))
+            child_kill_task = asyncio.create_task(self.kill_pid_async(self.child_pid))
+        else:
+            raise AlteryxEngineError(
+                "Could not find all required PIDS, process may not have started"
+            )
 
         # Wait for both tasks to complete
         await asyncio.gather(parent_kill_task, child_kill_task)
@@ -346,18 +352,16 @@ class AlteryxEngine(AlteryxEngineScaffold):
             "can't find the file",
         ]
         if any(keyword in lower_message for keyword in error_keywords):
-            logging_level = "ERROR"
             if self.verbose:
                 warnings.warn(log_message)
-            self.log_to_sql(log_message=error_message, logging_level=logging_level)
+            self.log_to_sql(log_message=error_message, logging_level="ERROR")  # type: ignore[arg-type]
             raise AlteryxEngineError(
                 f"Exit raised by the following error: {error_message}"
             )
         # Check if the log message contains any warning keywords
         warning_keywords = ["warning"]
         if any(keyword in lower_message for keyword in warning_keywords):
-            logging_level = "WARNING"
             if self.verbose:
                 warnings.warn(log_message)
         # Log the message to a SQL database
-        self.log_to_sql(log_message=log_message, logging_level=logging_level)
+        self.log_to_sql(log_message=log_message, logging_level="WARNING")

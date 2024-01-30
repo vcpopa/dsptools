@@ -161,7 +161,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
                 proc = psutil.Process(parent_pid)
                 children = proc.children()
                 print(f"Children: {children}")
-                if not children != []:
+                if children != []:
                     return children[0].pid
                 if (time.time() - start_time) >= 120:
                     raise asyncio.TimeoutError(

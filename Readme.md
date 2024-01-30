@@ -1,6 +1,6 @@
 [![Build Status](https://github.com/vpopaRWH/dsptools/actions/workflows/black.yml/badge.svg)](https://github.com/vpopaRWH/dsptools/actions/workflows/black.yml)
 
-[![Code Spellcheck Status](https://github.com/vpopaRWH/dsptools/actions/workflows/codespell.yml/badge.svg)](https://github.com/vpopaRWH/dsptools/actions/workflows/codespell.yml)
+[![Codespell](https://github.com/vpopaRWH/dsptools/actions/workflows/codespell.yml/badge.svg?branch=master)](https://github.com/vpopaRWH/dsptools/actions/workflows/codespell.yml)
 
 [![Pylint Status](https://github.com/vpopaRWH/dsptools/actions/workflows/pylint.yml/badge.svg)](https://github.com/vpopaRWH/dsptools/actions/workflows/pylint.yml)
 

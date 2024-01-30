@@ -73,8 +73,7 @@ def conditional_polling(
                 f"An error occurred in the condition function: {str(e)}"
             ) from e
 
-        elapsed_time = time.time() - start_time
-        if elapsed_time >= max_duration:
+        if (time.time() - start_time) >= max_duration:
             raise PollingTimeoutError("Max duration exceeded")
 
         time.sleep(interval)
@@ -98,11 +97,10 @@ def parallelize_execution(
     Returns:
         List: A list of results from the function executions.
     """
-    executor = None
     if executor_type == "thread":
         executor = ThreadPoolExecutor(max_workers=max_workers)
     elif executor_type == "process":
-        executor = ProcessPoolExecutor(max_workers=max_workers)
+        executor = ProcessPoolExecutor(max_workers=max_workers)  # type: ignore[assignment]
     else:
         raise ValueError("Invalid executor_type. Use 'thread' or 'process'.")
 
@@ -148,10 +146,10 @@ def retry(max_retries: int, retry_interval: int, enabled: bool = True):
                         if retries < max_retries:
                             time.sleep(retry_interval)
                 raise RetryTimeout(f"Max retries ({max_retries}) exceeded")
-            else:
-                return func(
-                    *args, **kwargs
-                )  # Decorator is disabled, execute the original function
+
+            return func(
+                *args, **kwargs
+            )  # Decorator is disabled, execute the original function
 
         return wrapper
 
@@ -320,10 +318,9 @@ def timeout(
                 return (
                     None  # You may choose to return a default value or None on timeout
                 )
-            else:
-                return item(
-                    *args, **kwargs
-                )  # Decorator is disabled, execute the original function
+            return item(
+                *args, **kwargs
+            )  # Decorator is disabled, execute the original function
 
         return func_wrapper
 

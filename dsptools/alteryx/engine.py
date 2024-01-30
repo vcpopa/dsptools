@@ -1,12 +1,11 @@
 from __future__ import annotations
+from typing import Dict, Literal, Union
+import time
+import os
 from abc import ABC, abstractmethod
 import warnings
 import asyncio
 import psutil
-from typing import Dict, Literal, Union
-import time
-import os
-import subprocess
 from sqlalchemy import create_engine, text
 from dsptools.errors.alteryx import (
     AlteryxNotFound,
@@ -19,11 +18,11 @@ from dsptools.errors.alteryx import (
 
 class AlteryxEngineScaffold(ABC):
     @abstractmethod
-    async def run(self) -> True:
+    async def run(self, run_as: Union[str, None]) -> int:
         pass
 
     @abstractmethod
-    async def stop(self) -> bool:
+    async def stop(self) -> None:
         pass
 
     @abstractmethod
@@ -84,7 +83,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
         if self.verbose is True:
             print("Alteryx workflow initialized successfully. Ready to start")
 
-    async def run(self) -> int:
+    async def run(self, run_as: Union[str, None] = None) -> int:
         """
         Start and run the Alteryx workflow asynchronously.
 
@@ -92,7 +91,8 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         """
         command = rf'"C:\Program Files\Alteryx\bin\AlteryxEngineCmd.exe" "{self.path_to_alteryx}"'
-
+        if run_as:
+            command = f"runas /user:{run_as} {command}"
         if self.verbose:
             print("Alteryx is starting...")
 
@@ -101,8 +101,8 @@ class AlteryxEngine(AlteryxEngineScaffold):
         # Start the Alteryx process asynchronously
         process = await asyncio.create_subprocess_exec(
             command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             shell=False,
             text=False,
         )
@@ -115,12 +115,12 @@ class AlteryxEngine(AlteryxEngineScaffold):
             self.child_pid = await asyncio.wait_for(
                 self.get_child_pid_async(self.parent_pid), timeout=120
             )
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as exc:
             # Terminate the parent process if the child PID was not obtained within the specified time
             process.terminate()
             raise AlteryxEngineError(
                 "Child PID not obtained within the specified time."
-            )
+            ) from exc
 
         if self.child_pid is None:
             raise AlteryxEngineError("Child PID not found.")
@@ -157,12 +157,10 @@ class AlteryxEngine(AlteryxEngineScaffold):
         """
         start_time = time.time()
         while True:
-            child_pid = await self.try_get_child_pid_async(parent_pid)
-            if child_pid is not None:
+            if (child_pid := await self.get_child_pid_async(parent_pid)) is not None:
                 return child_pid
 
-            elapsed_time = time.time() - start_time
-            if elapsed_time >= 120:
+            if (time.time() - start_time) >= 120:
                 return None  # Child PID not obtained within the specified time
 
             # Poll every 3 seconds
@@ -184,11 +182,17 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         Raises:
             AlteryxKillError: If any of the processes could not be killed.
+            AlteryxEngineError: If parent and/or child PIDs not found.
 
         """
         # Start tasks to kill both parent and child processes asynchronously
-        parent_kill_task = asyncio.create_task(self.kill_pid_async(self.parent_pid))
-        child_kill_task = asyncio.create_task(self.kill_pid_async(self.child_pid))
+        if self.parent_pid and self.child_pid:
+            parent_kill_task = asyncio.create_task(self.kill_pid_async(self.parent_pid))
+            child_kill_task = asyncio.create_task(self.kill_pid_async(self.child_pid))
+        else:
+            raise AlteryxEngineError(
+                "Could not find all required PIDS, process may not have started"
+            )
 
         # Wait for both tasks to complete
         await asyncio.gather(parent_kill_task, child_kill_task)
@@ -283,9 +287,8 @@ class AlteryxEngine(AlteryxEngineScaffold):
             schema_exists_query = text(
                 f"SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '{schema}'"
             )
-            schema_exists = conn.execute(schema_exists_query).scalar() is not None
 
-            if not schema_exists:
+            if (conn.execute(schema_exists_query).scalar()) is not None:
                 raise AlteryxLoggerError(
                     f"Schema '{schema}' does not exist. Cannot create the log table."
                 )
@@ -294,8 +297,8 @@ class AlteryxEngine(AlteryxEngineScaffold):
             table_exists_query = text(
                 f"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}'"
             )
-            table_exists = conn.execute(table_exists_query).scalar() is not None
-            if table_exists is False:
+
+            if conn.execute(table_exists_query).scalar() is None:
                 warnings.warn(
                     f"Log table '{self.log_to['table']}' was created!",
                     UserWarning,
@@ -335,7 +338,6 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         # Initialize error message and logging level
         error_message = f"Failure: {log_message}"
-        logging_level = "INFO"
 
         # Check if the log message contains any error keywords
         error_keywords = [
@@ -345,18 +347,17 @@ class AlteryxEngine(AlteryxEngineScaffold):
             "can't find the file",
         ]
         if any(keyword in lower_message for keyword in error_keywords):
-            logging_level = "ERROR"
             if self.verbose:
                 warnings.warn(log_message)
-            self.log_to_sql(log_message=error_message, logging_level=logging_level)
+            self.log_to_sql(log_message=error_message, logging_level="ERROR")  # type: ignore[arg-type]
             raise AlteryxEngineError(
                 f"Exit raised by the following error: {error_message}"
             )
         # Check if the log message contains any warning keywords
         warning_keywords = ["warning"]
         if any(keyword in lower_message for keyword in warning_keywords):
-            logging_level = "WARNING"
             if self.verbose:
                 warnings.warn(log_message)
-        # Log the message to a SQL database
-        self.log_to_sql(log_message=log_message, logging_level=logging_level)
+            # Log the message to a SQL database
+            self.log_to_sql(log_message=log_message, logging_level="WARNING")
+        self.log_to_sql(log_message=log_message, logging_level="INFO")

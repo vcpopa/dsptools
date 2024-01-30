@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import List, Tuple, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
-from azure.storage.blob import BlobServiceClient, ContainerClient
+from azure.storage.blob import BlobServiceClient, ContainerClient  # type: ignore[import-not-found]
 from dsptools.errors.data import AzureStorageBlobError, AzureStorageBlobConnectionError
 
 

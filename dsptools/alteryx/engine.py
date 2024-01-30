@@ -83,7 +83,7 @@ class AlteryxEngine(AlteryxEngineScaffold):
         if self.verbose is True:
             print("Alteryx workflow initialized successfully. Ready to start")
 
-    async def run(self, run_as: Union[str, None] = None) -> int:
+    async def run(self) -> int:
         """
         Start and run the Alteryx workflow asynchronously.
 
@@ -91,20 +91,16 @@ class AlteryxEngine(AlteryxEngineScaffold):
 
         """
         command = rf'"C:\Program Files\Alteryx\bin\AlteryxEngineCmd.exe" "{self.path_to_alteryx}"'
-        if run_as:
-            command = f"runas /user:{run_as} {command}"
         if self.verbose:
             print("Alteryx is starting...")
 
         self.create_log_table_if_not_exist()
 
         # Start the Alteryx process asynchronously
-        process = await asyncio.create_subprocess_exec(
+        process = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            shell=False,
-            text=False,
         )
 
         self.parent_pid = process.pid

@@ -73,7 +73,7 @@ def conditional_polling(
                 f"An error occurred in the condition function: {str(e)}"
             ) from e
 
-        if (elapsed_time := time.time() - start_time) >= max_duration:
+        if (time.time() - start_time) >= max_duration:
             raise PollingTimeoutError("Max duration exceeded")
 
         time.sleep(interval)
